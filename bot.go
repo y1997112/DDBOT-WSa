@@ -2,13 +2,6 @@ package DDBOT
 
 import (
 	"fmt"
-	"github.com/Sora233/DDBOT/lsp"
-	"github.com/Sora233/DDBOT/warn"
-	"github.com/Sora233/MiraiGo-Template/bot"
-	"github.com/Sora233/MiraiGo-Template/config"
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/rifflock/lfshook"
-	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -17,6 +10,14 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/Sora233/DDBOT/lsp"
+	"github.com/Sora233/DDBOT/warn"
+	"github.com/Sora233/MiraiGo-Template/bot"
+	"github.com/Sora233/MiraiGo-Template/config"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
+	"github.com/rifflock/lfshook"
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/Sora233/DDBOT/logging"
 	_ "github.com/Sora233/DDBOT/lsp/acfun"
@@ -110,14 +111,16 @@ func Run() {
 
 	// 初始化 Modules
 	bot.StartService()
-
-	// 登录
-	bot.Login()
+	fmt.Println("运行完了bot.StartService()")
+	// 登录 跳过登录
+	//bot.Login()
 
 	// 刷新好友列表，群列表
-	bot.RefreshList()
+	//以后刷新
+	//bot.RefreshList()
 
 	lsp.Instance.PostStart(bot.Instance)
+	fmt.Println("运行完了lsp.Instance.PostStart(bot.Instance)")
 
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)

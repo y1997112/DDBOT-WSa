@@ -2,6 +2,11 @@ package main
 
 import (
 	"fmt"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"runtime"
+
 	"github.com/Sora233/DDBOT"
 	_ "github.com/Sora233/DDBOT/logging"
 	"github.com/Sora233/DDBOT/lsp"
@@ -17,10 +22,6 @@ import (
 	"github.com/Sora233/DDBOT/warn"
 	"github.com/Sora233/MiraiGo-Template/config"
 	"github.com/alecthomas/kong"
-	"net/http"
-	_ "net/http/pprof"
-	"os"
-	"runtime"
 )
 
 func main() {
@@ -80,6 +81,9 @@ func main() {
 	}
 
 	fmt.Println("DDBOT唯一指定交流群：755612788")
+	fmt.Println("二次修改:https://github.com/Hoshinonyaruko/DDBOT-ws")
+	fmt.Println("改版问题交流群:670078416")
+	fmt.Println("本分支版本去除了miraigo并将应用逻辑开放到websocket,以onebotv11标准与客户端进行交互.")
 
 	if cli.Debug {
 		lsp.Debug = true

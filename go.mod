@@ -2,6 +2,10 @@ module github.com/Sora233/DDBOT
 
 go 1.20
 
+replace github.com/Sora233/MiraiGo-Template => ./bot
+
+replace github.com/Mrs4s/MiraiGo => ./miraigo
+
 require (
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Mrs4s/MiraiGo v0.0.0-20230627090859-19e3d172596e
@@ -54,6 +58,7 @@ require (
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect

@@ -1,22 +1,27 @@
 package msgstringer
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/lsp/mmsg"
 	"github.com/davecgh/go-spew/spew"
-	"strconv"
-	"strings"
 )
 
 func MsgToString(elements []message.IMessageElement) string {
 	var res strings.Builder
-	for _, elem := range elements {
+	for i, elem := range elements {
 		if elem == nil {
 			continue
 		}
+		// Print each element's type for debugging
+		fmt.Printf("Element %d is of type %T\n", i, elem)
 		switch e := elem.(type) {
 		case *message.TextElement:
 			res.WriteString(e.Content)
+			fmt.Printf("Content of TextElement: %s\n", e.Content)
 		case *message.FaceElement:
 			res.WriteString("[")
 			res.WriteString(e.Name)
