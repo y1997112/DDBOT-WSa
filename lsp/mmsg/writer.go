@@ -133,7 +133,7 @@ func (m *MSG) ImageByUrl(url string, alternative string, opts ...requests.Option
 
 	// 创建一个新的TextElement，其中包含格式化的URL
 	textElem := &message.TextElement{
-		Content: fmt.Sprintf("[CQ:image,file=file:///%s]\n", url),
+		Content: fmt.Sprintf("[CQ:image,file=%s]\n", url),
 	}
 
 	// 将新的TextElement添加到消息的Elements中
@@ -150,7 +150,7 @@ func (m *MSG) ImageByUrlWithNorm(url string, alternative string, opts ...request
 
 	// 创建一个新的TextElement，其中包含格式化的URL
 	textElem := &message.TextElement{
-		Content: fmt.Sprintf("[CQ:image,file=file:///%s]\n", url),
+		Content: fmt.Sprintf("[CQ:image,file=%s]\n", url),
 	}
 
 	// 将新的TextElement添加到消息的Elements中
