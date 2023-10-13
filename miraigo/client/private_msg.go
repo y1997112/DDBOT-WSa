@@ -17,22 +17,32 @@ import (
 type WebSocketActionMessagePrivate struct {
 	Action string                 `json:"action"`
 	Params WebSocketParamsPrivate `json:"params"`
+	Echo   string                 `json:"echo,omitempty"`
 }
 
 type WebSocketParamsPrivate struct {
 	UserID  string `json:"user_id"`
 	Message string `json:"message"`
-	BotQQ   string `json:"botqq"`
 }
 
+// 发送私聊信息
 func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, newstr string) *message.PrivateMessage {
+	// 检查target是否是由字符串经MD5得到的
+	originalUserID, exists := originalStringFromInt64(target)
+
+	// 如果存在于映射中，则使用原始字符串，否则使用当前的target值
+	finalUserID := strconv.FormatInt(target, 10)
+	if exists {
+		finalUserID = originalUserID
+	}
+
 	msg := WebSocketActionMessagePrivate{
 		Action: "send_private_msg",
 		Params: WebSocketParamsPrivate{
-			UserID:  strconv.FormatInt(target, 10),
+			UserID:  finalUserID,
 			Message: newstr,
-			BotQQ:   "3570577015",
 		},
+		Echo: c.currentEcho,
 	}
 
 	data, err := json.Marshal(msg)

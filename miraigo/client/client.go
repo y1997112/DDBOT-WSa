@@ -2,6 +2,7 @@ package client
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/pkg/errors"
 
@@ -132,6 +134,7 @@ type QQClient struct {
 	//增加的字段
 	ws            *websocket.Conn
 	responseChans map[string]chan *ResponseGroupData
+	currentEcho   string
 }
 
 // 新增
@@ -215,49 +218,98 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-type Int64String int64
+var md5Int64Mapping = make(map[int64]string)
+var md5Int64MappingLock sync.Mutex
 
-type WebSocketMessage struct {
-	PostType    string      `json:"post_type"`
-	MessageType string      `json:"message_type"`
-	Time        Int64String `json:"time"`
-	SelfID      Int64String `json:"self_id"`
-	SubType     string      `json:"sub_type"`
-	Sender      struct {
-		Age      int    `json:"age"`
-		Card     string `json:"card"`
-		Nickname string `json:"nickname"`
-		Role     string `json:"role"`
-		UserID   string `json:"user_id"`
-	} `json:"sender"`
-	UserID     Int64String `json:"user_id"`
-	MessageID  Int64String `json:"message_id"`
-	GroupID    string      `json:"group_id"`
-	Message    string      `json:"message"`
-	MessageSeq Int64String `json:"message_seq"`
-	RawMessage string      `json:"raw_message"`
-	Echo       string      `json:"echo,omitempty"`
+type DynamicInt64 int64
+
+type MessageContent struct {
+	Type string                 `json:"type"`
+	Data map[string]interface{} `json:"data"`
 }
 
-func (i *Int64String) UnmarshalJSON(b []byte) error {
+type WebSocketMessage struct {
+	PostType    string       `json:"post_type"`
+	MessageType string       `json:"message_type"`
+	Time        DynamicInt64 `json:"time"`
+	SelfID      DynamicInt64 `json:"self_id"`
+	SubType     string       `json:"sub_type"`
+	Sender      struct {
+		Age      int          `json:"age"`
+		Card     string       `json:"card"`
+		Nickname string       `json:"nickname"`
+		Role     string       `json:"role"`
+		UserID   DynamicInt64 `json:"user_id"`
+	} `json:"sender"`
+	UserID         DynamicInt64 `json:"user_id"`
+	MessageID      DynamicInt64 `json:"message_id"`
+	GroupID        DynamicInt64 `json:"group_id"`
+	MessageContent interface{}  `json:"message"`
+	MessageSeq     DynamicInt64 `json:"message_seq"`
+	RawMessage     string       `json:"raw_message"`
+	Echo           string       `json:"echo,omitempty"`
+}
+
+func (d *DynamicInt64) UnmarshalJSON(b []byte) error {
 	var n int64
 	var s string
 
-	// 尝试解析为字符串
+	// 首先尝试解析为字符串
 	if err := json.Unmarshal(b, &s); err == nil {
-		var err error
+		// 如果解析成功，再尝试将字符串解析为int64
 		n, err = strconv.ParseInt(s, 10, 64)
-		if err != nil {
-			return err
+		if err != nil { // 如果是非数字字符串
+			// 进行 md5 处理
+			hashed := md5.Sum([]byte(s))
+			hexString := hex.EncodeToString(hashed[:])
+
+			// 去除字母并取前15位
+			numericPart := strings.Map(func(r rune) rune {
+				if unicode.IsDigit(r) {
+					return r
+				}
+				return -1
+			}, hexString)
+
+			if len(numericPart) < 15 {
+				return fmt.Errorf("哈希过短: %s", numericPart)
+			}
+
+			n, err = strconv.ParseInt(numericPart[:15], 10, 64)
+			if err != nil {
+				return err
+			}
+
+			// 更新映射，但限制锁的范围
+			md5Int64MappingLock.Lock()
+			md5Int64Mapping[n] = s
+			md5Int64MappingLock.Unlock()
 		}
 	} else {
-		// 尝试解析为int64
+		// 如果字符串解析失败，再尝试解析为int64
 		if err := json.Unmarshal(b, &n); err != nil {
 			return err
 		}
 	}
-	*i = Int64String(n)
+
+	*d = DynamicInt64(n)
 	return nil
+}
+
+func (d DynamicInt64) ToInt64() int64 {
+	return int64(d)
+}
+
+func (d DynamicInt64) ToString() string {
+	return strconv.FormatInt(int64(d), 10)
+}
+
+func originalStringFromInt64(n int64) (string, bool) {
+	md5Int64MappingLock.Lock()
+	defer md5Int64MappingLock.Unlock()
+
+	originalString, exists := md5Int64Mapping[n]
+	return originalString, exists
 }
 
 // 假设 wsmsg.Message 是一个字符串，包含了形如 [CQ:at=xxxx] 的数据
@@ -299,18 +351,17 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			log.Println(err)
 			return
 		}
-
 		// 打印收到的消息
 		log.Println(string(p))
-
+		//初步解析
 		var basicMsg BasicMessage
 		err = json.Unmarshal(p, &basicMsg)
 		if err != nil {
 			log.Println("Failed to parse basic message:", err)
 			continue
 		}
-
 		respCh, isResponse := c.responseChans[basicMsg.Echo]
+		//根据echo判断
 		if isResponse {
 			action, _ := parseEcho(basicMsg.Echo)
 			switch action {
@@ -321,7 +372,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					continue
 				}
 				respCh <- &groupData
-				// ... handle other response types similarly ...
+				//其他类型
 			}
 			delete(c.responseChans, basicMsg.Echo)
 			continue
@@ -333,25 +384,16 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			log.Println("Failed to parse message:", err)
 			continue
 		}
+		// 存储 echo
+		c.currentEcho = wsmsg.Echo
 		// 处理解析后的消息
 		if wsmsg.MessageType == "group" {
-			// 转换为 message.GroupMessage 结构
-			groupID, err := strconv.ParseInt(wsmsg.GroupID, 10, 64)
-			if err != nil {
-				log.Println("Failed to convert GroupID:", err)
-				continue
-			}
-			UserID, err := strconv.ParseInt(wsmsg.Sender.UserID, 10, 64)
-			if err != nil {
-				log.Println("Failed to convert UserID:", err)
-				continue
-			}
 			g := &message.GroupMessage{
 				Id:        int32(wsmsg.MessageSeq),
-				GroupCode: groupID,
-				GroupName: wsmsg.Sender.Card, // 这可能需要根据实际情况进行调整
+				GroupCode: wsmsg.GroupID.ToInt64(),
+				GroupName: wsmsg.Sender.Card,
 				Sender: &message.Sender{
-					Uin:      UserID,
+					Uin:      wsmsg.Sender.UserID.ToInt64(),
 					Nickname: wsmsg.Sender.Nickname,
 					CardName: wsmsg.Sender.Card,
 					IsFriend: false,
@@ -359,58 +401,116 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				Time:           int32(wsmsg.Time),
 				OriginalObject: nil,
 			}
-			// 使用extractAtElements函数从wsmsg.Message中提取At元素
-			atElements := extractAtElements(wsmsg.Message)
 
-			// 将提取的At元素和文本元素都添加到g.Elements
-			g.Elements = append(g.Elements, &message.TextElement{Content: wsmsg.Message})
-			for _, elem := range atElements {
-				g.Elements = append(g.Elements, elem)
+			if MessageContent, ok := wsmsg.MessageContent.(string); ok {
+				// 替换字符串中的"\/"为"/"
+				MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
+				// 使用extractAtElements函数从wsmsg.Message中提取At元素
+				atElements := extractAtElements(MessageContent)
+				// 将提取的At元素和文本元素都添加到g.Elements
+				g.Elements = append(g.Elements, &message.TextElement{Content: MessageContent})
+				for _, elem := range atElements {
+					g.Elements = append(g.Elements, elem)
+				}
+			} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
+				for _, contentInterface := range contentArray {
+					contentMap, ok := contentInterface.(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					contentType, ok := contentMap["type"].(string)
+					if !ok {
+						continue
+					}
+
+					switch contentType {
+					case "text":
+						text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
+						if ok {
+							// 替换字符串中的"\/"为"/"
+							text = strings.Replace(text, "\\/", "/", -1)
+							g.Elements = append(g.Elements, &message.TextElement{Content: text})
+						}
+					case "at":
+						if data, ok := contentMap["data"].(map[string]interface{}); ok {
+							if qqData, ok := data["qq"].(float64); ok {
+								qq := strconv.Itoa(int(qqData))
+								atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+								g.Elements = append(g.Elements, &message.TextElement{Content: atText})
+							}
+						}
+					}
+				}
 			}
 			fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
 			fmt.Printf("%+v\n", g)
 			// 使用 dispatch 方法
 			c.GroupMessageEvent.dispatch(c, g)
-
 		}
-		if wsmsg.MessageType == "private" {
-			// 转换为 PrivateMessage 结构
-			userID, err := strconv.ParseInt(wsmsg.Sender.UserID, 10, 64)
-			if err != nil {
-				log.Println("Failed to convert UserID:", err)
-				continue
-			}
 
-			// 你可能需要根据你的系统其他部分的信息来填写InternalId和Self字段的值
+		if wsmsg.MessageType == "private" {
 			pMsg := &message.PrivateMessage{
 				Id:         int32(wsmsg.MessageID),
-				InternalId: 0,     // 根据你的系统来填写这个值
-				Self:       c.Uin, // 这里假设c.Uin是你的QQ号
-				Target:     userID,
+				InternalId: 0,
+				Self:       c.Uin,
+				Target:     wsmsg.Sender.UserID.ToInt64(),
 				Time:       int32(wsmsg.Time),
 				Sender: &message.Sender{
-					Uin:      userID,
+					Uin:      wsmsg.Sender.UserID.ToInt64(),
 					Nickname: wsmsg.Sender.Nickname,
-					CardName: "",   // wsmsg.Sender.Card在private message里可能是空的
-					IsFriend: true, // 如果是私聊，可以默认是好友
+					CardName: "", // Private message might not have a Card
+					IsFriend: true,
 				},
 			}
-			// 使用extractAtElements函数从wsmsg.Message中提取At元素
-			atElements := extractAtElements(wsmsg.Message)
-			// 将提取的At元素和文本元素都添加到g.Elements
-			pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: wsmsg.Message})
-			for _, elem := range atElements {
-				pMsg.Elements = append(pMsg.Elements, elem)
-			}
 
-			// 将Int64String转为string进行比较
+			if MessageContent, ok := wsmsg.MessageContent.(string); ok {
+				// 替换字符串中的"\/"为"/"
+				MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
+				// 使用extractAtElements函数从wsmsg.Message中提取At元素
+				atElements := extractAtElements(MessageContent)
+				// 将提取的At元素和文本元素都添加到g.Elements
+				pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: MessageContent})
+				for _, elem := range atElements {
+					pMsg.Elements = append(pMsg.Elements, elem)
+				}
+			} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
+				for _, contentInterface := range contentArray {
+					contentMap, ok := contentInterface.(map[string]interface{})
+					if !ok {
+						continue
+					}
+
+					contentType, ok := contentMap["type"].(string)
+					if !ok {
+						continue
+					}
+
+					switch contentType {
+					case "text":
+						text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
+						if ok {
+							// 替换字符串中的"\/"为"/"
+							text = strings.Replace(text, "\\/", "/", -1)
+							pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+						}
+					case "at":
+						if data, ok := contentMap["data"].(map[string]interface{}); ok {
+							if qqData, ok := data["qq"].(float64); ok {
+								qq := strconv.Itoa(int(qqData))
+								atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+								pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: atText})
+							}
+						}
+					}
+				}
+			}
 			selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
-			if selfIDStr == wsmsg.Sender.UserID {
+			if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
 				c.SelfPrivateMessageEvent.dispatch(c, pMsg)
 			} else {
 				c.PrivateMessageEvent.dispatch(c, pMsg)
 			}
-
 		}
 	}
 }

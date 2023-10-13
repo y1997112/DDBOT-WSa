@@ -10,6 +10,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+// 实际上at在这里
 func MsgToString(elements []message.IMessageElement) string {
 	var res strings.Builder
 	for i, elem := range elements {
@@ -45,9 +46,10 @@ func MsgToString(elements []message.IMessageElement) string {
 			res.WriteString(e.Title)
 			res.WriteString("]")
 		case *message.ReplyElement:
-			res.WriteString("[Reply:")
-			res.WriteString(strconv.FormatInt(int64(e.ReplySeq), 10))
-			res.WriteString("]")
+			fmt.Printf("暂时不发送at:[Reply:%s]\n", strconv.FormatInt(int64(e.ReplySeq), 10))
+			// res.WriteString("[Reply:")
+			// res.WriteString(strconv.FormatInt(int64(e.ReplySeq), 10))
+			// res.WriteString("]")
 		case *message.GroupFileElement:
 			res.WriteString("[File]")
 			res.WriteString(e.Name)

@@ -1,10 +1,12 @@
 package mmsg
 
 import (
+	"encoding/base64"
+	"os"
+
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/requests"
 	"github.com/Sora233/DDBOT/utils"
-	"os"
 )
 
 type ImageBytesElement struct {
@@ -88,36 +90,73 @@ func (i *ImageBytesElement) Type() message.ElementType {
 	return ImageBytes
 }
 
+// func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement {
+// 	if i == nil {
+// 		return message.NewText("[nil image]\n")
+// 	}
+// 	switch target.TargetType() {
+// 	case TargetPrivate:
+// 		if i.Buf != nil {
+// 			img, err := utils.UploadPrivateImage(target.TargetCode(), i.Buf, false)
+// 			if err == nil {
+// 				return img
+// 			}
+// 			logger.Errorf("TargetPrivate %v UploadGroupImage error %v", target.TargetCode(), err)
+// 		} else {
+// 			logger.Debugf("TargetPrivate %v nil image buf", target.TargetCode())
+// 		}
+// 	case TargetGroup:
+// 		if i.Buf != nil {
+// 			img, err := utils.UploadGroupImage(target.TargetCode(), i.Buf, false)
+// 			if err == nil {
+// 				return img
+// 			}
+// 			logger.Errorf("TargetGroup %v UploadGroupImage error %v", target.TargetCode(), err)
+// 		} else {
+// 			logger.Debugf("TargetGroup %v nil image buf", target.TargetCode())
+// 		}
+// 	default:
+// 		panic("ImageBytesElement PackToElement: unknown TargetType")
+// 	}
+// 	if i.alternative == "" {
+// 		return message.NewText("")
+// 	}
+// 	return message.NewText(i.alternative + "\n")
+// }
+
 func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement {
 	if i == nil {
-		return message.NewText("[nil image]\n")
+		return message.NewText("[空图片]\n")
 	}
-	switch target.TargetType() {
-	case TargetPrivate:
-		if i.Buf != nil {
-			img, err := utils.UploadPrivateImage(target.TargetCode(), i.Buf, false)
-			if err == nil {
-				return img
-			}
-			logger.Errorf("TargetPrivate %v UploadGroupImage error %v", target.TargetCode(), err)
-		} else {
-			logger.Debugf("TargetPrivate %v nil image buf", target.TargetCode())
-		}
-	case TargetGroup:
-		if i.Buf != nil {
-			img, err := utils.UploadGroupImage(target.TargetCode(), i.Buf, false)
-			if err == nil {
-				return img
-			}
-			logger.Errorf("TargetGroup %v UploadGroupImage error %v", target.TargetCode(), err)
-		} else {
-			logger.Debugf("TargetGroup %v nil image buf", target.TargetCode())
-		}
-	default:
-		panic("ImageBytesElement PackToElement: unknown TargetType")
-	}
+	logger.Debugf("转换base64图片")
+	base64Image := base64.StdEncoding.EncodeToString(i.Buf)      // 这里进行转换
+	base64Text := "[CQ:image,file=base64://" + base64Image + "]" // Base64 文本格式
+
+	// switch target.TargetType() {
+	// case TargetPrivate:
+	// 	if i.Buf != nil {
+	// 		_, err := utils.UploadPrivateImage(target.TargetCode(), i.Buf, false)
+	// 		if err != nil {
+	// 			logger.Errorf("TargetPrivate %v UploadGroupImage error %v", target.TargetCode(), err)
+	// 		}
+	// 	} else {
+	// 		logger.Debugf("TargetPrivate %v nil image buf", target.TargetCode())
+	// 	}
+	// case TargetGroup:
+	// 	if i.Buf != nil {
+	// 		_, err := utils.UploadGroupImage(target.TargetCode(), i.Buf, false)
+	// 		if err != nil {
+	// 			logger.Errorf("TargetGroup %v UploadGroupImage error %v", target.TargetCode(), err)
+	// 		}
+	// 	} else {
+	// 		logger.Debugf("TargetGroup %v nil image buf", target.TargetCode())
+	// 	}
+	// default:
+	// 	panic("ImageBytesElement PackToElement: unknown TargetType")
+	// }
+
 	if i.alternative == "" {
-		return message.NewText("")
+		return message.NewText(base64Text)
 	}
-	return message.NewText(i.alternative + "\n")
+	return message.NewText(base64Text)
 }

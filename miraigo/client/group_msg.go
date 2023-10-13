@@ -36,23 +36,31 @@ func init() {
 type WebSocketActionMessage struct {
 	Action string          `json:"action"`
 	Params WebSocketParams `json:"params"`
+	Echo   string          `json:"echo,omitempty"`
 }
 
 type WebSocketParams struct {
 	GroupID string `json:"group_id"`
 	Message string `json:"message"`
-	BotQQ   string `json:"botqq"`
 }
 
-// SendGroupMessage 发送群消息
 func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, newstr string) *message.GroupMessage {
+	// 检查groupCode是否是由字符串经MD5得到的
+	originalGroupID, exists := originalStringFromInt64(groupCode)
+
+	// 如果存在于映射中，则使用原始字符串，否则使用当前groupCode
+	finalGroupID := strconv.FormatInt(groupCode, 10)
+	if exists {
+		finalGroupID = originalGroupID
+	}
+
 	msg := WebSocketActionMessage{
 		Action: "send_group_msg",
 		Params: WebSocketParams{
-			GroupID: strconv.FormatInt(groupCode, 10),
+			GroupID: finalGroupID,
 			Message: newstr,
-			BotQQ:   "3570577015",
 		},
+		Echo: c.currentEcho, // 使用保存的 echo 值
 	}
 
 	data, err := json.Marshal(msg)

@@ -177,6 +177,7 @@ func (msg *TempMessage) ToString() (res string) {
 	return
 }
 
+// at部分
 func (msg *GroupMessage) ToString() (res string) {
 	var strBuilder strings.Builder
 	for _, elem := range msg.GetElements() {
