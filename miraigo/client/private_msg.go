@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"strconv"
 	"time"
@@ -47,10 +46,12 @@ func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, n
 
 	data, err := json.Marshal(msg)
 	if err != nil {
-		fmt.Printf("Failed to marshal message to JSON: %v", err)
+		//fmt.Printf("Failed to marshal message to JSON: %v", err)
+		logger.Infof("Failed to marshal message to JSON: %v", err)
 		return nil
 	}
-	fmt.Printf("发私信action给ws客户端: %v", msg)
+	//fmt.Printf("发私信action给ws客户端: %v", msg)
+	logger.Infof("发私信action给ws客户端: %v", msg)
 	c.sendToWebSocketClient(c.ws, data)
 	mr := int32(rand.Uint32())
 	var seq int32

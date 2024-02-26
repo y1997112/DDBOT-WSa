@@ -1,18 +1,19 @@
 package lsp
 
 import (
-	"github.com/Sora233/DDBOT/proxy_pool"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Sora233/DDBOT/proxy_pool"
+	"github.com/Sora233/DDBOT/requests"
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	CommitId  = "UNKNOWN"
-	BuildTime = "UNKNOWN"
-	Tags      = "UNKNOWN"
+	CommitId  = "a00"
+	BuildTime = "2024-2-26 17:51:00"
+	Tags      = "DDBOT-WSa"
 )
 
 func CheckUpdate() string {
@@ -21,7 +22,7 @@ func CheckUpdate() string {
 			logrus.Errorf("更新检测失败：%v", e)
 		}
 	}()
-	if Tags == "UNKNOWN" {
+	if Tags == "DDBOT-WSa" {
 		logrus.Debug("自编译版本，跳过更新检测")
 		return ""
 	}

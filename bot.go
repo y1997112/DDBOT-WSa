@@ -153,6 +153,8 @@ concern:
   emitInterval: 5s
 
 logLevel: info
+
+ws-server: 0.0.0.0:15630
 `
 	// win上用记事本打开不会正确换行
 	if runtime.GOOS == "windows" {

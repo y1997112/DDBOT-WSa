@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"net/netip"
@@ -32,6 +31,7 @@ import (
 	"github.com/Mrs4s/MiraiGo/client/pb/msg"
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Mrs4s/MiraiGo/utils"
+	"github.com/Sora233/MiraiGo-Template/config"
 )
 
 type QQClient struct {
@@ -348,16 +348,19 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 	for {
 		_, p, err := ws.ReadMessage()
 		if err != nil {
-			log.Println(err)
+			logger.Error(err)
+			//log.Println(err)
 			return
 		}
 		// 打印收到的消息
-		log.Println(string(p))
+		//log.Println(string(p))
+		logger.Infof("Received message: %s", string(p))
 		//初步解析
 		var basicMsg BasicMessage
 		err = json.Unmarshal(p, &basicMsg)
 		if err != nil {
-			log.Println("Failed to parse basic message:", err)
+			//log.Println("Failed to parse basic message:", err)
+			logger.Errorf("Failed to parse basic message: %v", err)
 			continue
 		}
 		respCh, isResponse := c.responseChans[basicMsg.Echo]
@@ -368,7 +371,8 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			case "get_group_list":
 				var groupData ResponseGroupData
 				if err := json.Unmarshal(basicMsg.Data, &groupData); err != nil {
-					log.Println("Failed to unmarshal group data:", err)
+					//log.Println("Failed to unmarshal group data:", err)
+					logger.Errorf("Failed to unmarshal group data: %v", err)
 					continue
 				}
 				respCh <- &groupData
@@ -381,7 +385,8 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		var wsmsg WebSocketMessage
 		err = json.Unmarshal(p, &wsmsg)
 		if err != nil {
-			log.Println("Failed to parse message:", err)
+			//log.Println("Failed to parse message:", err)
+			logger.Errorf("Failed to parse message: %v", err)
 			continue
 		}
 		// 存储 echo
@@ -443,8 +448,10 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					}
 				}
 			}
-			fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
-			fmt.Printf("%+v\n", g)
+			logger.Info("准备c.GroupMessageEvent.dispatch(c, g)")
+			//fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
+			logger.Infof("%+v\n", g)
+			//fmt.Printf("%+v\n", g)
 			// 使用 dispatch 方法
 			c.GroupMessageEvent.dispatch(c, g)
 		}
@@ -519,32 +526,42 @@ func (c *QQClient) StartWebSocketServer() {
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Println(err)
+			//log.Println(err)
+			logger.Error(err)
 			return
 		}
 
 		// 打印新的 WebSocket 连接日志
-		log.Println("有新的ws连接了!!")
+		logger.Info("有新的ws连接了!!")
+		//log.Println("有新的ws连接了!!")
 
 		// 打印客户端的 headers
 		for name, values := range r.Header {
 			for _, value := range values {
-				log.Printf("%s: %s", name, value)
+				logger.WithField(name, value).Info()
+				//log.Printf("%s: %s", name, value)
 			}
 		}
 
 		c.handleConnection(ws)
 	})
 
-	log.Println("WebSocket server started on ws://0.0.0.0:15630")
-	log.Fatal(http.ListenAndServe("0.0.0.0:15630", nil))
+	ws_addr := config.GlobalConfig.GetString("ws-server")
+	if ws_addr == "" {
+		ws_addr = "0.0.0.0:15630"
+	}
+	logger.WithField("force", true).Printf("WebSocket server started on ws://%s", ws_addr)
+	logger.Fatal(http.ListenAndServe(ws_addr, nil))
+	//log.Println("WebSocket server started on ws://0.0.0.0:15630")
+	//log.Fatal(http.ListenAndServe("0.0.0.0:15630", nil))
 }
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
 	if ws != nil {
 		err := ws.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
-			log.Printf("Failed to send message to WebSocket client: %v", err)
+			//log.Printf("Failed to send message to WebSocket client: %v", err)
+			logger.Errorf("Failed to send message to WebSocket client: %v", err)
 		}
 	}
 }
@@ -989,7 +1006,8 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 	// }
 	// return r, nil
 	//虚拟数据
-	fmt.Printf("欺骗ddbot,给它假的群数据")
+	logger.WithField("force", true).Print("欺骗ddbot,给它假的群数据")
+	//fmt.Printf("欺骗ddbot,给它假的群数据")
 	groups := []*GroupInfo{
 		{
 			Uin:             670078416,
