@@ -6,11 +6,8 @@ import (
 
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/lsp/mmsg"
-	"github.com/Sora233/MiraiGo-Template/utils"
 	"github.com/davecgh/go-spew/spew"
 )
-
-var logger = utils.GetModuleLogger("msg-stringer")
 
 // 实际上at在这里
 func MsgToString(elements []message.IMessageElement) string {
@@ -20,13 +17,13 @@ func MsgToString(elements []message.IMessageElement) string {
 			continue
 		}
 		// Print each element's type for debugging
-		logger.Infof(`Element %d is of type %T\n`, i, elem)
+		logger.Debugf(`Element %d is of type %T\n`, i, elem)
 		//fmt.Printf("Element %d is of type %T\n", i, elem)
 		switch e := elem.(type) {
 		case *message.TextElement:
 			res.WriteString(e.Content)
 			//fmt.Printf("Content of TextElement: %s\n", e.Content)
-			logger.Infof(`Content of TextElement: %s\n`, e.Content)
+			logger.Debugf(`Content of TextElement: %s\n`, e.Content)
 		case *message.FaceElement:
 			res.WriteString("[")
 			res.WriteString(e.Name)

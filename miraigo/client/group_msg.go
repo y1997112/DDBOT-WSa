@@ -65,11 +65,11 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	data, err := json.Marshal(msg)
 	if err != nil {
 		//fmt.Printf("Failed to marshal message to JSON: %v", err)
-		logger.Infof("Failed to marshal message to JSON: %v", err)
+		logger.Errorf("Failed to marshal message to JSON: %v", err)
 		return nil
 	}
 	//fmt.Printf("发群信息action给ws客户端: %v", msg)
-	logger.Infof("发群信息action给ws客户端: %v", msg)
+	logger.Debugf("发群信息action给ws客户端: %v", msg)
 	c.sendToWebSocketClient(c.ws, data)
 	imgCount := 0
 	for _, e := range m.Elements {

@@ -3,7 +3,6 @@ package lsp
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -503,7 +502,8 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 			return
 		}
 		//fmt.Printf("运行到cmd := NewLspGroupCommand(l, msg)啦!")
-		fmt.Printf("%+v\n", msg)
+		//fmt.Printf("%+v\n", msg)
+		logger.Debugf("%+v\n", msg)
 		cmd := NewLspGroupCommand(l, msg)
 		if Debug {
 			cmd.Debug()
@@ -697,9 +697,10 @@ func (l *Lsp) SendMsg(m *mmsg.MSG, target mmsg.Target) (res []interface{}) {
 	for idx, msg := range msgs {
 		r := l.send(msg, target)
 		res = append(res, r)
-		if reflect.ValueOf(r).Elem().FieldByName("Id").Int() == -1 {
-			break
-		}
+		// 原本的发送返回值已经无效，故直接无视
+		// if reflect.ValueOf(r).Elem().FieldByName("Id").Int() == -1 {
+		// 	break
+		// }
 		if idx > 1 {
 			time.Sleep(time.Millisecond * 300)
 		}
@@ -755,6 +756,7 @@ func (l *Lsp) sendPrivateMessage(uin int64, msg *message.SendingMessage) (res *m
 // miraigo偶尔发送消息会panic？！
 func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, recovered ...bool) (res *message.GroupMessage) {
 	//fmt.Printf("运行到发信息了%v\n", msgstringer.MsgToString(msg.Elements))
+	logger.Debugf("发送消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	defer func() {
 		if e := recover(); e != nil {
 			if len(recovered) == 0 {
@@ -780,6 +782,7 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 	// 	return &message.GroupMessage{Id: -1, Elements: msg.Elements}
 	// }
 	if msg == nil {
+		//logger.Debug("消息为空，返回")
 		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil message")
 		return &message.GroupMessage{Id: -1}
 	}
@@ -787,6 +790,7 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 	// 	return element != nil
 	// })
 	if len(msg.Elements) == 0 {
+		//logger.Debug("消息元素为空，返回")
 		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with empty message")
 		return &message.GroupMessage{Id: -1}
 	}
@@ -806,6 +810,7 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 	// 	}
 	// }
 	if res == nil {
+		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil message")
 		res = &message.GroupMessage{Id: -1, Elements: msg.Elements}
 	}
 	return res

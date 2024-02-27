@@ -354,7 +354,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		}
 		// 打印收到的消息
 		//log.Println(string(p))
-		logger.Infof("Received message: %s", string(p))
+		logger.Debugf("Received message: %s", string(p))
 		//初步解析
 		var basicMsg BasicMessage
 		err = json.Unmarshal(p, &basicMsg)
@@ -448,9 +448,9 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					}
 				}
 			}
-			logger.Info("准备c.GroupMessageEvent.dispatch(c, g)")
+			logger.Debugf("准备c.GroupMessageEvent.dispatch(c, g)")
 			//fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
-			logger.Infof("%+v\n", g)
+			logger.Infof("%+v", g)
 			//fmt.Printf("%+v\n", g)
 			// 使用 dispatch 方法
 			c.GroupMessageEvent.dispatch(c, g)
@@ -514,10 +514,14 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			}
 			selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
 			if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
+				logger.Debugf("准备c.SelfPrivateMessageEvent.dispatch(c, pMsg)")
 				c.SelfPrivateMessageEvent.dispatch(c, pMsg)
 			} else {
+				logger.Debugf("准备c.PrivateMessageEvent.dispatch(c, pMsg)")
 				c.PrivateMessageEvent.dispatch(c, pMsg)
 			}
+
+			logger.Infof("%+v", pMsg)
 		}
 	}
 }
@@ -538,7 +542,7 @@ func (c *QQClient) StartWebSocketServer() {
 		// 打印客户端的 headers
 		for name, values := range r.Header {
 			for _, value := range values {
-				logger.WithField(name, value).Info()
+				logger.WithField(name, value).Debug()
 				//log.Printf("%s: %s", name, value)
 			}
 		}
