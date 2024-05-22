@@ -41,17 +41,23 @@ func MsgToString(elements []message.IMessageElement) string {
 				res.WriteString("[Image]")
 			}
 		case *message.AtElement:
-			res.WriteString(e.Display)
+			res.WriteString("[CQ:at,qq=")
+			if e.Target == 0 {
+				res.WriteString("all")
+			} else {
+				res.WriteString(strconv.FormatInt(e.Target, 10))
+			}
+			res.WriteString("]")
 		case *message.RedBagElement:
 			res.WriteString("[RedBag:")
 			res.WriteString(e.Title)
 			res.WriteString("]")
 		case *message.ReplyElement:
 			//fmt.Printf("暂时不发送at:[Reply:%s]\n", strconv.FormatInt(int64(e.ReplySeq), 10))
-			logger.Infof(`暂时不发送at:[Reply:%s]\n`, strconv.FormatInt(int64(e.ReplySeq), 10))
-			// res.WriteString("[Reply:")
-			// res.WriteString(strconv.FormatInt(int64(e.ReplySeq), 10))
-			// res.WriteString("]")
+			//logger.Infof(`暂时不发送at:[Reply:%s]\n`, strconv.FormatInt(int64(e.ReplySeq), 10))
+			res.WriteString("[CQ:reply,id=")
+			res.WriteString(strconv.FormatInt(int64(e.ReplySeq), 10))
+			res.WriteString("]")
 		case *message.GroupFileElement:
 			res.WriteString("[File]")
 			res.WriteString(e.Name)

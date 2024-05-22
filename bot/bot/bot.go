@@ -104,7 +104,7 @@ func Init() {
 
 	signServer := config.GlobalConfig.GetString("sign-server")
 	if signServer == "" {
-		fmt.Println("警告: 未配置签名服务器, 这可能会导致登录 45 错误码或发送消息被风控")
+		logger.Warn("警告: 未配置签名服务器, 这可能会导致登录 45 错误码或发送消息被风控")
 	} else {
 		wrapper.DandelionEnergy = energy
 		wrapper.FekitGetSign = sign
@@ -261,6 +261,7 @@ func Login() {
 
 // RefreshList 刷新联系人
 func RefreshList() {
+	time.Sleep(time.Second * 5)
 	logger.Info("start reload friends list")
 	err := Instance.ReloadFriendList()
 	if err != nil {
@@ -273,6 +274,14 @@ func RefreshList() {
 		logger.WithError(err).Error("unable to load groups list")
 	}
 	logger.Infof("load %d groups", len(Instance.GroupList))
+	logger.Info("start reload group members list")
+	for _, group := range Instance.GroupList {
+		group.Members, err = Instance.GetGroupMembers(group)
+		if err != nil {
+			logger.WithError(err).Error("unable to load group members list")
+		}
+	}
+	logger.Info("load members done.")
 }
 
 // StartService 启动服务

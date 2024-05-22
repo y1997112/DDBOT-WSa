@@ -319,6 +319,7 @@ func (g *GroupInfo) AdministratorOrOwner() bool {
 
 func (g *GroupInfo) FindMember(uin int64) *GroupMemberInfo {
 	r := g.Read(func(info *GroupInfo) any {
+		g.sort()
 		return info.FindMemberWithoutLock(uin)
 	})
 	if r == nil {

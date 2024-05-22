@@ -224,7 +224,7 @@ func (c *StateManager) CheckGroupAdministrator(groupCode int64, caller int64) bo
 		"GroupCode": groupCode,
 		"Caller":    caller,
 	})
-	log.Errorf("正在admin.txt检查权限,一行一个\n")
+	log.Info("正在admin.txt检查权限,一行一个\n")
 	// 打开并读取admin.txt
 	data, err := ioutil.ReadFile("admin.txt")
 	if err != nil {

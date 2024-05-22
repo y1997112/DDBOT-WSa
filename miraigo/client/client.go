@@ -132,9 +132,10 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws            *websocket.Conn
-	responseChans map[string]chan *ResponseGroupData
-	currentEcho   string
+	ws              *websocket.Conn
+	responseChans   map[string]chan *ResponseGroupData
+	responseMembers map[string]chan *ResponseGroupMemberData
+	currentEcho     string
 }
 
 // 新增
@@ -155,6 +156,37 @@ type ResponseGroupData struct {
 	Retcode int         `json:"retcode"`
 	Status  string      `json:"status"`
 	Echo    string      `json:"echo"`
+}
+
+// 群成员信息
+type MemberData struct {
+	GroupID         int64  `json:"group_id"`
+	UserID          int64  `json:"user_id"`
+	Nickname        string `json:"nickname"`
+	Card            string `json:"card"`
+	Sex             string `json:"sex"`
+	Age             int    `json:"age"`
+	Area            string `json:"area"`
+	Level           int16  `json:"level"`
+	QQLevel         int16  `json:"qq_level"`
+	JoinTime        int64  `json:"join_time"`
+	LastSentTime    int64  `json:"last_sent_time"`
+	TitleExpireTime int64  `json:"title_expire_time"`
+	Unfriendly      bool   `json:"unfriendly"`
+	CardChangeable  bool   `json:"card_changeable"`
+	IsRobot         bool   `json:"is_robot"`
+	ShutUpTimestamp int64  `json:"shut_up_timestamp"`
+	Role            string `json:"role"`
+	Title           string `json:"title"`
+}
+
+// 群成员请求返回
+type ResponseGroupMemberData struct {
+	Status  string       `json:"status"`
+	Retcode int          `json:"retcode"`
+	Message string       `json:"message"`
+	Wording string       `json:"wording"`
+	Data    []MemberData `json:"data"`
 }
 
 // 新增
@@ -364,20 +396,31 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			continue
 		}
 		respCh, isResponse := c.responseChans[basicMsg.Echo]
+		respCha, isResponseA := c.responseMembers[basicMsg.Echo]
 		//根据echo判断
-		if isResponse {
+		if isResponse || isResponseA {
 			action, _ := parseEcho(basicMsg.Echo)
+			logger.Debug(action)
 			switch action {
 			case "get_group_list":
 				var groupData ResponseGroupData
-				if err := json.Unmarshal(basicMsg.Data, &groupData); err != nil {
+				if err := json.Unmarshal(basicMsg.Data, &groupData.Data); err != nil {
 					//log.Println("Failed to unmarshal group data:", err)
 					logger.Errorf("Failed to unmarshal group data: %v", err)
 					continue
 				}
 				respCh <- &groupData
-				//其他类型
+			case "get_group_member_list":
+
+				var memberData ResponseGroupMemberData
+				if err := json.Unmarshal(basicMsg.Data, &memberData.Data); err != nil {
+					//log.Println("Failed to unmarshal group member data:", err)
+					logger.Errorf("Failed to unmarshal group member data: %v", err)
+					continue
+				}
+				respCha <- &memberData
 			}
+			//其他类型
 			delete(c.responseChans, basicMsg.Echo)
 			continue
 		}
@@ -391,12 +434,18 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		}
 		// 存储 echo
 		c.currentEcho = wsmsg.Echo
+		// 变更UIN
+		c.Uin = int64(wsmsg.SelfID)
 		// 处理解析后的消息
 		if wsmsg.MessageType == "group" {
+			var groupName = ""
+			if len(c.GroupList) > 0 {
+				groupName = c.FindGroupByUin(wsmsg.GroupID.ToInt64()).Name
+			}
 			g := &message.GroupMessage{
 				Id:        int32(wsmsg.MessageSeq),
 				GroupCode: wsmsg.GroupID.ToInt64(),
-				GroupName: wsmsg.Sender.Card,
+				GroupName: groupName,
 				Sender: &message.Sender{
 					Uin:      wsmsg.Sender.UserID.ToInt64(),
 					Nickname: wsmsg.Sender.Nickname,
@@ -439,10 +488,19 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 						}
 					case "at":
 						if data, ok := contentMap["data"].(map[string]interface{}); ok {
-							if qqData, ok := data["qq"].(float64); ok {
-								qq := strconv.Itoa(int(qqData))
-								atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-								g.Elements = append(g.Elements, &message.TextElement{Content: atText})
+							var qq int
+							if qqData, ok := data["qq"].(string); ok {
+								if qqData != "all" {
+									qq, err = strconv.Atoi(qqData)
+									if err != nil {
+										logger.Errorf("Failed to parse qq: %v", err)
+										continue
+									}
+								} else {
+									qq = 0
+								}
+								//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+								g.Elements = append(g.Elements, &message.AtElement{Target: int64(qq), Display: g.Sender.DisplayName()})
 							}
 						}
 					}
@@ -503,10 +561,19 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 						}
 					case "at":
 						if data, ok := contentMap["data"].(map[string]interface{}); ok {
-							if qqData, ok := data["qq"].(float64); ok {
-								qq := strconv.Itoa(int(qqData))
-								atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-								pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: atText})
+							var qq int
+							if qqData, ok := data["qq"].(string); ok {
+								if qqData != "all" {
+									qq, err = strconv.Atoi(qqData)
+									if err != nil {
+										logger.Errorf("Failed to parse qq: %v", err)
+										continue
+									}
+								} else {
+									qq = 0
+								}
+								//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+								pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
 							}
 						}
 					}
@@ -928,58 +995,58 @@ func generateEcho(action string) string {
 }
 
 func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
+	echo := generateEcho("get_group_list")
+	//botqq := config.GlobalConfig.GetString("botqq")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "get_group_list",
+		"params": map[string]string{
+			//"botqq": botqq,
+		},
+		"echo": echo,
+	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseGroupData)
+	// 初始化 c.responseChans 映射
+	c.responseChans = make(map[string]chan *ResponseGroupData)
+	c.responseChans[echo] = respChan
 
-	// echo := generateEcho("get_group_list")
-	// // 构建请求
-	// req := map[string]interface{}{
-	// 	"action": "get_group_list",
-	// 	"params": map[string]string{
-	// 		"botqq": "3570577015",
-	// 	},
-	// 	"echo": echo,
-	// }
-	// // 创建响应通道并添加到映射中
-	// respChan := make(chan *ResponseGroupData)
-	// c.responseChans[echo] = respChan
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
 
-	// // 发送请求
-	// data, _ := json.Marshal(req)
-	// c.sendToWebSocketClient(c.ws, data)
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		// 根据resp的结构处理数据
+		//if resp.Retcode != 0 || resp.Status != "ok" {
+		//	return nil, fmt.Errorf("error response from server: %s", resp.Message)
+		//}
 
-	// // 等待响应或超时
-	// select {
-	// case resp := <-respChan:
-	// 	// 根据resp的结构处理数据
-	// 	if resp.Retcode != 0 || resp.Status != "ok" {
-	// 		return nil, fmt.Errorf("error response from server: %s", resp.Message)
-	// 	}
+		// 将ResponseGroupData转换为GroupInfo列表
+		groups := make([]*GroupInfo, len(resp.Data))
+		c.debug("GetGroupList: %v", resp.Data)
+		for i, groupData := range resp.Data {
+			groups[i] = &GroupInfo{
+				Uin:             groupData.GroupID,
+				Code:            groupData.GroupID,
+				Name:            groupData.GroupName,
+				GroupCreateTime: uint32(groupData.GroupCreateTime),
+				GroupLevel:      uint32(groupData.GroupLevel),
+				MemberCount:     uint16(groupData.MemberCount),
+				MaxMemberCount:  uint16(groupData.MaxMemberCount),
+				// TODO: add more fields if necessary, like Members, etc.
+			}
+		}
 
-	// 	// 将ResponseGroupData转换为GroupInfo列表
-	// 	groups := make([]*GroupInfo, len(resp.Data))
-	// 	for i, groupData := range resp.Data {
+		return groups, nil
 
-	// 		groups[i] = &GroupInfo{
-	// 			Uin:             groupData.GroupID,
-	// 			Code:            groupData.GroupID,
-	// 			Name:            groupData.GroupName,
-	// 			GroupCreateTime: uint32(groupData.GroupCreateTime),
-	// 			GroupLevel:      uint32(groupData.GroupLevel),
-	// 			MemberCount:     uint16(groupData.MemberCount),
-	// 			MaxMemberCount:  uint16(groupData.MaxMemberCount),
-	// 			// TODO: add more fields if necessary, like Members, etc.
-	// 		}
-	// 	}
+	case <-time.After(10 * time.Second):
+		return nil, errors.New("GetGroupList: timeout waiting for response.")
+	}
 
-	// 	return groups, nil
-
-	// case <-time.After(10 * time.Second):
-	// 	return nil, errors.New("timeout waiting for response")
-	// }
-
-	// 清理
-
-	// 清理
-	// TODO: 返回GroupInfo结构体列表
+	// TODO:
+	// 返回GroupInfo结构体列表
 
 	// rsp, err := c.sendAndWait(c.buildGroupListRequestPacket(EmptyBytes))
 	// if err != nil {
@@ -1009,50 +1076,51 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 	// 	wg.Wait()
 	// }
 	// return r, nil
+
 	//虚拟数据
-	logger.WithField("force", true).Print("欺骗ddbot,给它假的群数据")
-	//fmt.Printf("欺骗ddbot,给它假的群数据")
-	groups := []*GroupInfo{
-		{
-			Uin:             670078416,
-			Code:            670078416,
-			Name:            "TestGroup",
-			OwnerUin:        2022717137,
-			GroupCreateTime: 1634000000,
-			GroupLevel:      1,
-			MemberCount:     3,
-			MaxMemberCount:  100,
-			Members: []*GroupMemberInfo{
-				{
-					Uin:             12345678,
-					Nickname:        "Member1",
-					CardName:        "Card1",
-					JoinTime:        1633900000,
-					LastSpeakTime:   1633999999,
-					SpecialTitle:    "Title1",
-					ShutUpTimestamp: 0,
-					Permission:      0,
-					Level:           1,
-					Gender:          1,
-				},
-				{
-					Uin:             2022717137,
-					Nickname:        "Owner",
-					CardName:        "OwnerCard",
-					JoinTime:        1633700000,
-					LastSpeakTime:   1633799999,
-					SpecialTitle:    "OwnerTitle",
-					ShutUpTimestamp: 0,
-					Permission:      1,
-					Level:           3,
-					Gender:          1,
-				},
-			},
-			LastMsgSeq: 10000,
-			client:     c,
-		},
-	}
-	return groups, nil
+	// logger.WithField("force", true).Print("欺骗ddbot,给它假的群数据")
+	// fmt.Printf("欺骗ddbot,给它假的群数据")
+	// groups := []*GroupInfo{
+	// 	{
+	// 		Uin:             670078416,
+	// 		Code:            670078416,
+	// 		Name:            "TestGroup",
+	// 		OwnerUin:        2022717137,
+	// 		GroupCreateTime: 1634000000,
+	// 		GroupLevel:      1,
+	// 		MemberCount:     3,
+	// 		MaxMemberCount:  100,
+	// 		Members: []*GroupMemberInfo{
+	// 			{
+	// 				Uin:             12345678,
+	// 				Nickname:        "Member1",
+	// 				CardName:        "Card1",
+	// 				JoinTime:        1633900000,
+	// 				LastSpeakTime:   1633999999,
+	// 				SpecialTitle:    "Title1",
+	// 				ShutUpTimestamp: 0,
+	// 				Permission:      0,
+	// 				Level:           1,
+	// 				Gender:          1,
+	// 			},
+	// 			{
+	// 				Uin:             2022717137,
+	// 				Nickname:        "Owner",
+	// 				CardName:        "OwnerCard",
+	// 				JoinTime:        1633700000,
+	// 				LastSpeakTime:   1633799999,
+	// 				SpecialTitle:    "OwnerTitle",
+	// 				ShutUpTimestamp: 0,
+	// 				Permission:      1,
+	// 				Level:           3,
+	// 				Gender:          1,
+	// 			},
+	// 		},
+	// 		LastMsgSeq: 10000,
+	// 		client:     c,
+	// 	},
+	// }
+	// return groups, nil
 }
 
 func (c *QQClient) GetGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error) {
@@ -1061,35 +1129,94 @@ func (c *QQClient) GetGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error)
 }
 
 func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInterner) ([]*GroupMemberInfo, error) {
-	var nextUin int64
-	var list []*GroupMemberInfo
-	for {
-		data, err := c.sendAndWait(c.buildGroupMemberListRequestPacket(group.Uin, group.Code, nextUin))
-		if err != nil {
-			return nil, err
-		}
-		if data == nil {
-			return nil, errors.New("group members list is unavailable: rsp is nil")
-		}
-		rsp := data.(*groupMemberListResponse)
-		nextUin = rsp.NextUin
-		for _, m := range rsp.list {
-			m.Group = group
-			if m.Uin == group.OwnerUin {
-				m.Permission = Owner
-			}
-			m.CardName = interner.Intern(m.CardName)
-			m.Nickname = interner.Intern(m.Nickname)
-			m.SpecialTitle = interner.Intern(m.SpecialTitle)
-		}
-		list = append(list, rsp.list...)
-		if nextUin == 0 {
-			sort.Slice(list, func(i, j int) bool {
-				return list[i].Uin < list[j].Uin
-			})
-			return list, nil
-		}
+	// var nextUin int64
+	//var list []*GroupMemberInfo
+
+	echo := generateEcho("get_group_member_list")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "get_group_member_list",
+		"params": map[string]string{
+			"group_id": strconv.FormatInt(group.Uin, 10),
+		},
+		"echo": echo,
 	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseGroupMemberData)
+	// 初始化 c.responseChans 映射
+	c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
+	c.responseMembers[echo] = respChan
+
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
+
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		// 根据resp的结构处理数据
+		//if resp.Retcode != 0 || resp.Status != "ok" {
+		//	return nil, fmt.Errorf("error response from server: %s", resp.Message)
+		//}
+
+		// 将ResponseGroupMemberData转换为GroupMemberInfo列表
+		members := make([]*GroupMemberInfo, len(resp.Data))
+		c.debug("GetGroupMembers: %v", resp.Data)
+		for i, memberData := range resp.Data {
+			var permission MemberPermission
+			if memberData.Role == "owner" {
+				permission = 1
+			} else if memberData.Role == "admin" {
+				permission = 2
+			} else if memberData.Role == "member" {
+				permission = 3
+			}
+			members[i] = &GroupMemberInfo{
+				Group:           group,
+				Uin:             memberData.UserID,
+				Nickname:        memberData.Nickname,
+				CardName:        memberData.Card,
+				JoinTime:        memberData.JoinTime,
+				LastSpeakTime:   memberData.LastSentTime,
+				SpecialTitle:    memberData.Title,
+				ShutUpTimestamp: memberData.ShutUpTimestamp,
+				Permission:      permission,
+			}
+		}
+
+		return members, nil
+
+	case <-time.After(10 * time.Second):
+		return nil, errors.New("GetGroupMembers: timeout waiting for response.")
+	}
+
+	// for {
+	// 	data, err := c.sendAndWait(c.buildGroupMemberListRequestPacket(group.Uin, group.Code, nextUin))
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	if data == nil {
+	// 		return nil, errors.New("group members list is unavailable: rsp is nil")
+	// 	}
+	// 	rsp := data.(*groupMemberListResponse)
+	// 	nextUin = rsp.NextUin
+	// 	for _, m := range rsp.list {
+	// 		m.Group = group
+	// 		if m.Uin == group.OwnerUin {
+	// 			m.Permission = Owner
+	// 		}
+	// 		m.CardName = interner.Intern(m.CardName)
+	// 		m.Nickname = interner.Intern(m.Nickname)
+	// 		m.SpecialTitle = interner.Intern(m.SpecialTitle)
+	// 	}
+	// 	list = append(list, rsp.list...)
+	// 	if nextUin == 0 {
+	// 		sort.Slice(list, func(i, j int) bool {
+	// 			return list[i].Uin < list[j].Uin
+	// 		})
+	// 		return list, nil
+	// 	}
+	// }
 }
 
 func (c *QQClient) GetMemberInfo(groupCode, memberUin int64) (*GroupMemberInfo, error) {

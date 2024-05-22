@@ -3,14 +3,15 @@ package lsp
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
+	"time"
+
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/lsp/concern"
 	"github.com/Sora233/DDBOT/lsp/mmsg"
 	"github.com/Sora233/DDBOT/utils"
 	"github.com/Sora233/DDBOT/utils/msgstringer"
 	"github.com/sirupsen/logrus"
-	"runtime/debug"
-	"time"
 )
 
 func (l *Lsp) ConcernNotify() {
@@ -106,7 +107,7 @@ func (l *Lsp) ConcernNotify() {
 				if atBeforeHook.Pass {
 					var atIdsOnce bool
 					for _, msg := range msgs {
-						if msg.Id == -1 {
+						if msg.Id == -1 && msg.InternalId == 0 {
 							// 检查有没有@全体成员
 							e := utils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 								return element.Type() == message.At && element.(*message.AtElement).Target == 0
