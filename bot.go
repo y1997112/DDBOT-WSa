@@ -144,8 +144,6 @@ bot:
 bilibili:
   SESSDATA: "" # 你的b站cookie
   bili_jct: "" # 你的b站cookie
-  account: 1379511367
-  password: rock7410
   interval: 25s # 直播状态和动态检测间隔，过快可能导致ip被暂时封禁
   imageMergeMode: "auto" # 设置图片合并模式，支持 "auto" / "only9" / "off"
                          # auto 为默认策略，存在比较刷屏的图片时会合并
