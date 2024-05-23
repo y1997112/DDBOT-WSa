@@ -79,6 +79,19 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 		}
 	}
 	msgLen := message.EstimateLength(m.Elements)
+	//判定消息长度限制
+	if len(m.Elements) > 0 {
+		for _, e := range m.Elements {
+			//判断消息是否为图片
+			if text, ok := e.(*message.TextElement); ok {
+				if strings.Contains(text.Content, "[CQ:image,file=") {
+					logger.Debug("检测到图片消息，重新计算消息长度")
+					msgLen -= len(text.Content)
+				}
+			}
+		}
+	}
+	//将文本长度减去图片Base64编码部分
 	if msgLen > message.MaxMessageSize || imgCount > 50 {
 		return nil
 	}
