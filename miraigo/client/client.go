@@ -135,6 +135,7 @@ type QQClient struct {
 	ws              *websocket.Conn
 	responseChans   map[string]chan *ResponseGroupData
 	responseMembers map[string]chan *ResponseGroupMemberData
+	responseFriends map[string]chan *ResponseFriendList
 	currentEcho     string
 }
 
@@ -156,6 +157,24 @@ type ResponseGroupData struct {
 	Retcode int         `json:"retcode"`
 	Status  string      `json:"status"`
 	Echo    string      `json:"echo"`
+}
+
+// 好友信息请求返回
+type ResponseFriendList struct {
+	Status  string       `json:"status"`
+	Retcode int          `json:"retcode"`
+	Message string       `json:"message"`
+	Data    []FriendData `json:"data"`
+	Wording string       `json:"wording"`
+}
+
+// 好友信息
+type FriendData struct {
+	UserID   int64  `json:"user_id"`
+	NickName string `json:"nick_name"`
+	Remark   string `json:"remark"`
+	Sex      string `json:"sex"`
+	Level    int    `json:"level"`
 }
 
 // 群成员信息
@@ -261,7 +280,17 @@ type MessageContent struct {
 }
 
 type WebSocketMessage struct {
-	PostType    string       `json:"post_type"`
+	PostType      string `json:"post_type"`
+	MetaEventType string `json:"meta_event_type"`
+	NoticeType    string `json:"notice_type"`
+	// Status        struct {
+	// 	Online bool `json:"online"`
+	// 	Good   bool `json:"good"`
+	// } `json:"status"`
+	RequestType string       `json:"request_type"`
+	Comment     string       `json:"comment"`
+	Flag        string       `json:"flag"`
+	Interval    int          `json:"interval"`
 	MessageType string       `json:"message_type"`
 	Time        DynamicInt64 `json:"time"`
 	SelfID      DynamicInt64 `json:"self_id"`
@@ -275,6 +304,7 @@ type WebSocketMessage struct {
 	} `json:"sender"`
 	UserID         DynamicInt64 `json:"user_id"`
 	MessageID      DynamicInt64 `json:"message_id"`
+	RealId         DynamicInt64 `json:"real_id"`
 	GroupID        DynamicInt64 `json:"group_id"`
 	MessageContent interface{}  `json:"message"`
 	MessageSeq     DynamicInt64 `json:"message_seq"`
@@ -395,14 +425,16 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			logger.Errorf("Failed to parse basic message: %v", err)
 			continue
 		}
-		respCh, isResponse := c.responseChans[basicMsg.Echo]
-		respCha, isResponseA := c.responseMembers[basicMsg.Echo]
-		//根据echo判断
-		if isResponse || isResponseA {
+		if basicMsg.Echo != "" {
 			action, _ := parseEcho(basicMsg.Echo)
-			logger.Debug(action)
+			logger.Debugf("Received action: %s", action)
+			//根据echo判断
 			switch action {
 			case "get_group_list":
+				respCh, isResponse := c.responseChans[basicMsg.Echo]
+				if !isResponse {
+					continue
+				}
 				var groupData ResponseGroupData
 				if err := json.Unmarshal(basicMsg.Data, &groupData.Data); err != nil {
 					//log.Println("Failed to unmarshal group data:", err)
@@ -411,14 +443,29 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				}
 				respCh <- &groupData
 			case "get_group_member_list":
-
+				respCh, isResponse := c.responseMembers[basicMsg.Echo]
+				if !isResponse {
+					continue
+				}
 				var memberData ResponseGroupMemberData
 				if err := json.Unmarshal(basicMsg.Data, &memberData.Data); err != nil {
 					//log.Println("Failed to unmarshal group member data:", err)
 					logger.Errorf("Failed to unmarshal group member data: %v", err)
 					continue
 				}
-				respCha <- &memberData
+				respCh <- &memberData
+			case "get_friend_list":
+				respCh, isResponse := c.responseFriends[basicMsg.Echo]
+				if !isResponse {
+					continue
+				}
+				var friendData ResponseFriendList
+				if err := json.Unmarshal(basicMsg.Data, &friendData.Data); err != nil {
+					//log.Println("Failed to unmarshal group member data:", err)
+					logger.Errorf("Failed to unmarshal friend data: %v", err)
+					continue
+				}
+				respCh <- &friendData
 			}
 			//其他类型
 			delete(c.responseChans, basicMsg.Echo)
@@ -434,18 +481,17 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		}
 		// 存储 echo
 		c.currentEcho = wsmsg.Echo
-		// 变更UIN
-		c.Uin = int64(wsmsg.SelfID)
 		// 处理解析后的消息
 		if wsmsg.MessageType == "group" {
-			var groupName = ""
-			if len(c.GroupList) > 0 {
-				groupName = c.FindGroupByUin(wsmsg.GroupID.ToInt64()).Name
-			}
+			// var groupName string
+			// if len(c.GroupList) > 0 {
+			// 	groupName = c.FindGroupByUin(wsmsg.GroupID.ToInt64()).Name
+			// }
 			g := &message.GroupMessage{
 				Id:        int32(wsmsg.MessageSeq),
 				GroupCode: wsmsg.GroupID.ToInt64(),
-				GroupName: groupName,
+				GroupName: "",
+				// GroupName: groupName,
 				Sender: &message.Sender{
 					Uin:      wsmsg.Sender.UserID.ToInt64(),
 					Nickname: wsmsg.Sender.Nickname,
@@ -454,6 +500,12 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				},
 				Time:           int32(wsmsg.Time),
 				OriginalObject: nil,
+			}
+			if c.GroupList != nil {
+				go c.SetMsgGroupNames(wsmsg.GroupID, g)
+			}
+			if c.FriendList != nil {
+				go c.SetFriend(wsmsg.Sender.UserID, g)
 			}
 
 			if MessageContent, ok := wsmsg.MessageContent.(string); ok {
@@ -525,7 +577,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					Uin:      wsmsg.Sender.UserID.ToInt64(),
 					Nickname: wsmsg.Sender.Nickname,
 					CardName: "", // Private message might not have a Card
-					IsFriend: true,
+					IsFriend: wsmsg.SubType == "friend",
 				},
 			}
 
@@ -590,6 +642,83 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 
 			logger.Infof("%+v", pMsg)
 		}
+		// 元事件
+		if wsmsg.PostType == "meta_event" {
+			// 生命周期
+			if wsmsg.SubType == "connect" {
+				// 刷新Bot.Uin
+				c.Uin = int64(wsmsg.SelfID)
+			}
+			// 心跳包
+			// if wsmsg.MetaEventType == "heartbeat" {
+			// 发送心跳包
+			// c.sendToWebSocketClient(ws, c.buildHeartbeatPacket())
+			// 刷新BOT状态
+			// 	c.alive = wsmsg.Status.Online
+			// }
+			logger.Infof("收到元事件消息：%s\n", wsmsg.MetaEventType)
+		}
+		// 通知事件
+		if wsmsg.PostType == "notice" {
+			// 如果是群事件，则更新群信息
+			if wsmsg.NoticeType == "group_admin" || wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
+				if c.GroupList != nil {
+					go c.SyncGroupMembers(intern.NewStringInterner(), wsmsg.GroupID)
+				}
+			}
+			// 如果是好友事件，则更新好友信息
+			if wsmsg.NoticeType == "friend_add" {
+				if c.FriendList != nil {
+					go c.ReloadFriendList()
+				}
+			}
+			logger.Infof("收到通知事件消息：%s\n", wsmsg.NoticeType)
+		}
+		// 请求事件
+		if wsmsg.PostType == "request" {
+			// 加好友邀请
+			if wsmsg.RequestType == "friend" {
+				// 发送请求获取群列表
+				//c.sendToWebSocketClient(ws, c.buildGetGroupListPacket())
+			}
+			// 加群邀请
+			if wsmsg.RequestType == "group" {
+				// 发送请求获取群成员列表
+				//c.sendToWebSocketClient(ws, c.buildGetGroupMemberListPacket(wsmsg.GroupID))
+			}
+			logger.Infof("收到请求事件消息：%s\n", wsmsg.RequestType)
+		}
+	}
+}
+
+func (c *QQClient) SetFriend(userID DynamicInt64, g *message.GroupMessage) {
+	friend := c.FindFriend(userID.ToInt64())
+	if friend == nil {
+		return
+	}
+	g.Sender.IsFriend = true
+}
+
+func (c *QQClient) SetMsgGroupNames(groupID DynamicInt64, g *message.GroupMessage) {
+	g.GroupName = c.FindGroupByUin(groupID.ToInt64()).Name
+}
+
+func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID DynamicInt64) {
+	group := c.FindGroupByUin(groupID.ToInt64())
+	// sort.Slice(c.GroupList, func(i2, j int) bool {
+	// 	return c.GroupList[i2].Uin < c.GroupList[j].Uin
+	// })
+	// i := sort.Search(len(c.GroupList), func(i int) bool {
+	// 	return c.GroupList[i].Uin >= int64(groupID)
+	// })
+	// if i >= len(c.GroupList) || c.GroupList[i].Uin != int64(groupID) {
+	// 	return
+	// }
+	var err error
+	//c.GroupList[i].Members, err = c.getGroupMembers(c.GroupList[i], intern)
+	group.Members, err = c.getGroupMembers(group, intern)
+	if err != nil {
+		logger.Errorf("Failed to update group members: %v", err)
 	}
 }
 
@@ -941,34 +1070,73 @@ func (c *QQClient) ReloadFriendList() error {
 	return nil
 }
 
+func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
+
+	echo := generateEcho("get_friend_list")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "get_friend_list",
+		"params": map[string]int64{},
+		"echo":   echo,
+	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseFriendList)
+	// 初始化 c.responseChans 映射
+	c.responseFriends = make(map[string]chan *ResponseFriendList)
+	c.responseFriends[echo] = respChan
+
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
+
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		friends := make([]*FriendInfo, len(resp.Data))
+		c.debug("GetFriendList: %v", resp.Data)
+		for i, friend := range resp.Data {
+			friends[i] = &FriendInfo{
+				Uin:      friend.UserID,
+				Nickname: friend.NickName,
+				Remark:   friend.Remark,
+				FaceId:   0,
+			}
+		}
+		return &FriendListResponse{TotalCount: int32(len(friends)), List: friends}, nil
+
+	case <-time.After(10 * time.Second):
+		return nil, errors.New("GetFriendList: timeout waiting for response.")
+	}
+}
+
 // GetFriendList
 // 当使用普通QQ时: 请求好友列表
 // 当使用企点QQ时: 请求外部联系人列表
-func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
-	if c.version().Protocol == auth.QiDian {
-		rsp, err := c.getQiDianAddressDetailList()
-		if err != nil {
-			return nil, err
-		}
-		return &FriendListResponse{TotalCount: int32(len(rsp)), List: rsp}, nil
-	}
-	curFriendCount := 0
-	r := &FriendListResponse{}
-	for {
-		rsp, err := c.sendAndWait(c.buildFriendGroupListRequestPacket(int16(curFriendCount), 150, 0, 0))
-		if err != nil {
-			return nil, err
-		}
-		list := rsp.(*FriendListResponse)
-		r.TotalCount = list.TotalCount
-		r.List = append(r.List, list.List...)
-		curFriendCount += len(list.List)
-		if int32(len(r.List)) >= r.TotalCount {
-			break
-		}
-	}
-	return r, nil
-}
+// func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
+// 	if c.version().Protocol == auth.QiDian {
+// 		rsp, err := c.getQiDianAddressDetailList()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		return &FriendListResponse{TotalCount: int32(len(rsp)), List: rsp}, nil
+// 	}
+// 	curFriendCount := 0
+// 	r := &FriendListResponse{}
+// 	for {
+// 		rsp, err := c.sendAndWait(c.buildFriendGroupListRequestPacket(int16(curFriendCount), 150, 0, 0))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		list := rsp.(*FriendListResponse)
+// 		r.TotalCount = list.TotalCount
+// 		r.List = append(r.List, list.List...)
+// 		curFriendCount += len(list.List)
+// 		if int32(len(r.List)) >= r.TotalCount {
+// 			break
+// 		}
+// 	}
+// 	return r, nil
+// }
 
 func (c *QQClient) SendGroupPoke(groupCode, target int64) {
 	_, _ = c.sendAndWait(c.buildGroupPokePacket(groupCode, target))
@@ -1136,8 +1304,8 @@ func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInte
 	// 构建请求
 	req := map[string]interface{}{
 		"action": "get_group_member_list",
-		"params": map[string]string{
-			"group_id": strconv.FormatInt(group.Uin, 10),
+		"params": map[string]int64{
+			"group_id": group.Uin,
 		},
 		"echo": echo,
 	}
