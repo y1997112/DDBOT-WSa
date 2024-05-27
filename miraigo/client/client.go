@@ -280,9 +280,10 @@ type MessageContent struct {
 }
 
 type WebSocketMessage struct {
-	PostType      string `json:"post_type"`
-	MetaEventType string `json:"meta_event_type"`
-	NoticeType    string `json:"notice_type"`
+	PostType      string       `json:"post_type"`
+	MetaEventType string       `json:"meta_event_type"`
+	NoticeType    string       `json:"notice_type"`
+	OperatorId    DynamicInt64 `json:"operator_id"`
 	// Status        struct {
 	// 	Online bool `json:"online"`
 	// 	Good   bool `json:"good"`
@@ -468,7 +469,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				respCh <- &friendData
 			}
 			//其他类型
-			delete(c.responseChans, basicMsg.Echo)
+			// delete(c.responseChans, basicMsg.Echo)
 			continue
 		}
 		// 解析消息
@@ -656,14 +657,23 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			// 刷新BOT状态
 			// 	c.alive = wsmsg.Status.Online
 			// }
-			logger.Infof("收到元事件消息：%s\n", wsmsg.MetaEventType)
+			logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
 		}
 		// 通知事件
 		if wsmsg.PostType == "notice" {
-			// 如果是群事件，则更新群信息
-			if wsmsg.NoticeType == "group_admin" || wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
-				if c.GroupList != nil {
-					go c.SyncGroupMembers(intern.NewStringInterner(), wsmsg.GroupID)
+			sync, flash := false, false
+			// 如果是权限变更，则仅刷新群成员列表
+			if wsmsg.NoticeType == "group_admin" {
+				sync = true
+				continue
+			}
+			// 根据是否与自身有关来选择性刷新群列表
+			if wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
+				sync = true
+				if wsmsg.UserID.ToInt64() == c.Uin || wsmsg.OperatorId.ToInt64() == c.Uin {
+					flash = true
+				} else {
+					flash = false
 				}
 			}
 			// 如果是好友事件，则更新好友信息
@@ -672,7 +682,13 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					go c.ReloadFriendList()
 				}
 			}
-			logger.Infof("收到通知事件消息：%s\n", wsmsg.NoticeType)
+			// 选择性执行上述结果
+			if sync {
+				if c.GroupList != nil {
+					go c.SyncGroupMembers(intern.NewStringInterner(), wsmsg.GroupID, flash)
+				}
+			}
+			logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
 		}
 		// 请求事件
 		if wsmsg.PostType == "request" {
@@ -686,7 +702,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				// 发送请求获取群成员列表
 				//c.sendToWebSocketClient(ws, c.buildGetGroupMemberListPacket(wsmsg.GroupID))
 			}
-			logger.Infof("收到请求事件消息：%s\n", wsmsg.RequestType)
+			logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
 		}
 	}
 }
@@ -700,10 +716,23 @@ func (c *QQClient) SetFriend(userID DynamicInt64, g *message.GroupMessage) {
 }
 
 func (c *QQClient) SetMsgGroupNames(groupID DynamicInt64, g *message.GroupMessage) {
-	g.GroupName = c.FindGroupByUin(groupID.ToInt64()).Name
+	group := c.FindGroupByUin(groupID.ToInt64())
+	if group != nil {
+		g.GroupName = group.Name
+	} else {
+		logger.Warnf("Not found group name: %d", groupID.ToInt64())
+	}
 }
 
-func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID DynamicInt64) {
+func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID DynamicInt64, flash bool) {
+	if flash {
+		//logger.Info("start reload groups list")
+		err := c.ReloadGroupList()
+		//logger.Infof("load %d groups", len(c.GroupList))
+		if err != nil {
+			logger.WithError(err).Error("unable to load groups list")
+		}
+	}
 	group := c.FindGroupByUin(groupID.ToInt64())
 	// sort.Slice(c.GroupList, func(i2, j int) bool {
 	// 	return c.GroupList[i2].Uin < c.GroupList[j].Uin
@@ -714,11 +743,15 @@ func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID Dynam
 	// if i >= len(c.GroupList) || c.GroupList[i].Uin != int64(groupID) {
 	// 	return
 	// }
-	var err error
 	//c.GroupList[i].Members, err = c.getGroupMembers(c.GroupList[i], intern)
-	group.Members, err = c.getGroupMembers(group, intern)
-	if err != nil {
-		logger.Errorf("Failed to update group members: %v", err)
+	if group != nil {
+		var err error
+		group.Members, err = c.getGroupMembers(group, intern)
+		if err != nil {
+			logger.Errorf("Failed to update group members: %v", err)
+		}
+	} else {
+		logger.Warnf("Not found group: %d", groupID.ToInt64())
 	}
 }
 
@@ -746,12 +779,12 @@ func (c *QQClient) StartWebSocketServer() {
 		c.handleConnection(ws)
 	})
 
-	ws_addr := config.GlobalConfig.GetString("ws-server")
-	if ws_addr == "" {
-		ws_addr = "0.0.0.0:15630"
+	wsAddr := config.GlobalConfig.GetString("ws-server")
+	if wsAddr == "" {
+		wsAddr = "0.0.0.0:15630"
 	}
-	logger.WithField("force", true).Printf("WebSocket server started on ws://%s", ws_addr)
-	logger.Fatal(http.ListenAndServe(ws_addr, nil))
+	logger.WithField("force", true).Printf("WebSocket server started on ws://%s", wsAddr)
+	logger.Fatal(http.ListenAndServe(wsAddr, nil))
 	//log.Println("WebSocket server started on ws://0.0.0.0:15630")
 	//log.Fatal(http.ListenAndServe("0.0.0.0:15630", nil))
 }
@@ -1066,6 +1099,7 @@ func (c *QQClient) ReloadFriendList() error {
 	if err != nil {
 		return err
 	}
+	c.FriendList = nil
 	c.FriendList = rsp.List
 	return nil
 }
@@ -1153,6 +1187,7 @@ func (c *QQClient) ReloadGroupList() error {
 	if err != nil {
 		return err
 	}
+	c.GroupList = nil
 	c.GroupList = list
 	return nil
 }
