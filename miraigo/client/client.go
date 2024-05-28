@@ -136,6 +136,7 @@ type QQClient struct {
 	responseChans   map[string]chan *ResponseGroupData
 	responseMembers map[string]chan *ResponseGroupMemberData
 	responseFriends map[string]chan *ResponseFriendList
+	responseMessage map[string]chan *ResponseSendMessage
 	currentEcho     string
 }
 
@@ -212,6 +213,17 @@ type ResponseGroupMemberData struct {
 type BasicMessage struct {
 	Echo string          `json:"echo"`
 	Data json.RawMessage `json:"data"`
+}
+
+// 发送消息返回
+type ResponseSendMessage struct {
+	Status  string `json:"status"`
+	Retcode int    `json:"retcode"`
+	Data    struct {
+		MessageID int32 `json:"message_id"`
+	}
+	Message string `json:"message"`
+	Wording string `json:"wording"`
 }
 
 type QiDianAccountInfo struct {
@@ -467,6 +479,18 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					continue
 				}
 				respCh <- &friendData
+			case "send_group_msg":
+				respCh, isResponse := c.responseMessage[basicMsg.Echo]
+				if !isResponse {
+					continue
+				}
+				var SendResp ResponseSendMessage
+				if err := json.Unmarshal(basicMsg.Data, &SendResp.Data); err != nil {
+					//log.Println("Failed to unmarshal send message response:", err)
+					logger.Errorf("Failed to unmarshal send message response: %v", err)
+					continue
+				}
+				respCh <- &SendResp
 			}
 			//其他类型
 			// delete(c.responseChans, basicMsg.Echo)
@@ -561,10 +585,10 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			}
 			logger.Debugf("准备c.GroupMessageEvent.dispatch(c, g)")
 			//fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
-			logger.Infof("%+v", g)
 			//fmt.Printf("%+v\n", g)
 			// 使用 dispatch 方法
 			c.GroupMessageEvent.dispatch(c, g)
+			logger.Infof("%+v", g)
 		}
 
 		if wsmsg.MessageType == "private" {

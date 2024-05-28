@@ -107,7 +107,7 @@ func (l *Lsp) ConcernNotify() {
 				if atBeforeHook.Pass {
 					var atIdsOnce bool
 					for _, msg := range msgs {
-						if msg.Id == -1 && msg.InternalId == 0 {
+						if msg.Id == -1 {
 							// 检查有没有@全体成员
 							e := utils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 								return element.Type() == message.At && element.(*message.AtElement).Target == 0

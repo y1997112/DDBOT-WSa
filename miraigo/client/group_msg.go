@@ -44,6 +44,8 @@ type WebSocketParams struct {
 }
 
 func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, newstr string) *message.GroupMessage {
+	// 消息ID
+	var msgID int32 = -1
 	// 检查groupCode是否是由字符串经MD5得到的
 	originalGroupID, exists := originalStringFromInt64(groupCode)
 
@@ -52,15 +54,21 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	if exists {
 		finalGroupID = originalGroupID
 	}
-
+	echo := generateEcho("send_group_msg")
 	msg := WebSocketActionMessage{
 		Action: "send_group_msg",
 		Params: WebSocketParams{
 			GroupID: finalGroupID,
 			Message: newstr,
 		},
-		Echo: c.currentEcho, // 使用保存的 echo 值
+		Echo: echo, // 使用保存的 echo 值
 	}
+
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseSendMessage)
+	// 初始化 c.responseChans 映射
+	c.responseMessage = make(map[string]chan *ResponseSendMessage)
+	c.responseMessage[echo] = respChan
 
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -71,38 +79,50 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	//fmt.Printf("发群信息action给ws客户端: %v", msg)
 	logger.Debugf("发群信息action给ws客户端: %v", msg)
 	c.sendToWebSocketClient(c.ws, data)
-	imgCount := 0
-	for _, e := range m.Elements {
-		switch e.Type() {
-		case message.Image:
-			imgCount++
+
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		if resp.Retcode == 0 {
+			msgID = resp.Data.MessageID
+		} else {
+			logger.Errorf("Failed to send group message: %v", resp.Message)
 		}
-	}
-	msgLen := message.EstimateLength(m.Elements)
-	//判定消息长度限制
-	if len(m.Elements) > 0 {
+		imgCount := 0
 		for _, e := range m.Elements {
-			//判断消息是否为图片
-			if text, ok := e.(*message.TextElement); ok {
-				if strings.Contains(text.Content, "[CQ:image,file=") {
-					logger.Debug("检测到图片消息，重新计算消息长度")
-					msgLen -= len(text.Content)
+			switch e.Type() {
+			case message.Image:
+				imgCount++
+			}
+		}
+		msgLen := message.EstimateLength(m.Elements)
+		//判定消息长度限制
+		if len(m.Elements) > 0 {
+			for _, e := range m.Elements {
+				//判断消息是否为图片
+				if text, ok := e.(*message.TextElement); ok {
+					if strings.Contains(text.Content, "[CQ:image,file=") {
+						logger.Debug("检测到图片消息，重新计算消息长度")
+						msgLen -= len(text.Content)
+					}
 				}
 			}
 		}
-	}
-	//将文本长度减去图片Base64编码部分
-	if msgLen > message.MaxMessageSize || imgCount > 50 {
+		//将文本长度减去图片Base64编码部分
+		if msgLen > message.MaxMessageSize || imgCount > 50 {
+			return nil
+		}
+		return c.sendGroupMessage(groupCode, false, m, msgID)
+	case <-time.After(10 * time.Second):
 		return nil
 	}
-	return c.sendGroupMessage(groupCode, false, m)
 }
 
 // SendGroupForwardMessage 发送群合并转发消息
 func (c *QQClient) SendGroupForwardMessage(groupCode int64, m *message.ForwardElement) *message.GroupMessage {
 	return c.sendGroupMessage(groupCode, true,
 		&message.SendingMessage{Elements: []message.IMessageElement{m}},
-	)
+		-1)
 }
 
 // GetGroupMessages 从服务器获取历史信息
@@ -123,7 +143,7 @@ func (c *QQClient) GetAtAllRemain(groupCode int64) (*AtAllRemainInfo, error) {
 	return i.(*AtAllRemainInfo), nil
 }
 
-func (c *QQClient) sendGroupMessage(groupCode int64, forward bool, m *message.SendingMessage) *message.GroupMessage {
+func (c *QQClient) sendGroupMessage(groupCode int64, forward bool, m *message.SendingMessage, msgID int32) *message.GroupMessage {
 	eid := utils.RandomString(6)
 	mr := int32(rand.Uint32())
 	ch := make(chan int32, 1)
@@ -159,7 +179,7 @@ func (c *QQClient) sendGroupMessage(groupCode int64, forward bool, m *message.Se
 	}
 	var mid int32
 	ret := &message.GroupMessage{
-		Id:         -1,
+		Id:         msgID,
 		InternalId: mr,
 		GroupCode:  groupCode,
 		Sender: &message.Sender{
@@ -172,7 +192,9 @@ func (c *QQClient) sendGroupMessage(groupCode int64, forward bool, m *message.Se
 	}
 	select {
 	case mid = <-ch:
+		// _ = mid
 		ret.Id = mid
+		// ret.Id = msgID
 		return ret
 	case <-time.After(time.Second * 5):
 		if g, err := c.GetGroupInfo(groupCode); err == nil {
