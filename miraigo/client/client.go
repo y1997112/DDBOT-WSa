@@ -132,12 +132,13 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws              *websocket.Conn
-	responseChans   map[string]chan *ResponseGroupData
-	responseMembers map[string]chan *ResponseGroupMemberData
-	responseFriends map[string]chan *ResponseFriendList
-	responseMessage map[string]chan *ResponseSendMessage
-	currentEcho     string
+	ws               *websocket.Conn
+	responseChans    map[string]chan *ResponseGroupData
+	responseMembers  map[string]chan *ResponseGroupMemberData
+	responseFriends  map[string]chan *ResponseFriendList
+	responseMessage  map[string]chan *ResponseSendMessage
+	responseSetLeave map[string]chan *ResponseSetGroupLeave
+	currentEcho      string
 }
 
 // 新增
@@ -224,6 +225,15 @@ type ResponseSendMessage struct {
 	}
 	Message string `json:"message"`
 	Wording string `json:"wording"`
+}
+
+// set指令返回
+type ResponseSetGroupLeave struct {
+	Status  string `json:"status"`
+	Retcode int    `json:"retcode"`
+	Message string `json:"message"`
+	Wording string `json:"wording"`
+	Echo    string `json:"echo"`
 }
 
 type QiDianAccountInfo struct {
@@ -322,6 +332,7 @@ type WebSocketMessage struct {
 	MessageContent interface{}  `json:"message"`
 	MessageSeq     DynamicInt64 `json:"message_seq"`
 	RawMessage     string       `json:"raw_message"`
+	TargetID       DynamicInt64 `json:"target_id"`
 	Echo           string       `json:"echo,omitempty"`
 }
 
@@ -474,7 +485,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				}
 				var friendData ResponseFriendList
 				if err := json.Unmarshal(basicMsg.Data, &friendData.Data); err != nil {
-					//log.Println("Failed to unmarshal group member data:", err)
+					//log.Println("Failed to unmarshal friend data:", err)
 					logger.Errorf("Failed to unmarshal friend data: %v", err)
 					continue
 				}
@@ -488,6 +499,17 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				if err := json.Unmarshal(basicMsg.Data, &SendResp.Data); err != nil {
 					//log.Println("Failed to unmarshal send message response:", err)
 					logger.Errorf("Failed to unmarshal send message response: %v", err)
+					continue
+				}
+				respCh <- &SendResp
+			case "set_group_leave":
+				respCh, isResponse := c.responseSetLeave[basicMsg.Echo]
+				if !isResponse {
+					continue
+				}
+				var SendResp ResponseSetGroupLeave
+				if err = json.Unmarshal(p, &SendResp); err != nil {
+					logger.Errorf("Failed to unmarshal set group leave response: %v", err)
 					continue
 				}
 				respCh <- &SendResp
@@ -525,12 +547,6 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				},
 				Time:           int32(wsmsg.Time),
 				OriginalObject: nil,
-			}
-			if c.GroupList != nil {
-				go c.SetMsgGroupNames(wsmsg.GroupID, g)
-			}
-			if c.FriendList != nil {
-				go c.SetFriend(wsmsg.Sender.UserID, g)
 			}
 
 			if MessageContent, ok := wsmsg.MessageContent.(string); ok {
@@ -587,8 +603,9 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			//fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
 			//fmt.Printf("%+v\n", g)
 			// 使用 dispatch 方法
-			c.GroupMessageEvent.dispatch(c, g)
-			logger.Infof("%+v", g)
+			// c.GroupMessageEvent.dispatch(c, g)
+			// logger.Infof("%+v", g)
+			go c.waitDataAndDispatch(g)
 		}
 
 		if wsmsg.MessageType == "private" {
@@ -604,6 +621,11 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					CardName: "", // Private message might not have a Card
 					IsFriend: wsmsg.SubType == "friend",
 				},
+			}
+
+			// 拿到发送自身发送的消息时修改为正确目标
+			if wsmsg.PostType == "message_sent" {
+				pMsg.Target = int64(wsmsg.TargetID)
 			}
 
 			if MessageContent, ok := wsmsg.MessageContent.(string); ok {
@@ -674,13 +696,6 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				// 刷新Bot.Uin
 				c.Uin = int64(wsmsg.SelfID)
 			}
-			// 心跳包
-			// if wsmsg.MetaEventType == "heartbeat" {
-			// 发送心跳包
-			// c.sendToWebSocketClient(ws, c.buildHeartbeatPacket())
-			// 刷新BOT状态
-			// 	c.alive = wsmsg.Status.Online
-			// }
 			logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
 		}
 		// 通知事件
@@ -709,7 +724,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			// 选择性执行上述结果
 			if sync {
 				if c.GroupList != nil {
-					go c.SyncGroupMembers(intern.NewStringInterner(), wsmsg.GroupID, flash)
+					go c.SyncGroupMembers(wsmsg.GroupID, flash)
 				}
 			}
 			logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
@@ -718,37 +733,41 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		if wsmsg.PostType == "request" {
 			// 加好友邀请
 			if wsmsg.RequestType == "friend" {
-				// 发送请求获取群列表
-				//c.sendToWebSocketClient(ws, c.buildGetGroupListPacket())
 			}
 			// 加群邀请
 			if wsmsg.RequestType == "group" {
-				// 发送请求获取群成员列表
-				//c.sendToWebSocketClient(ws, c.buildGetGroupMemberListPacket(wsmsg.GroupID))
 			}
 			logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
 		}
 	}
 }
 
-func (c *QQClient) SetFriend(userID DynamicInt64, g *message.GroupMessage) {
-	friend := c.FindFriend(userID.ToInt64())
-	if friend == nil {
-		return
+func (c *QQClient) waitDataAndDispatch(g *message.GroupMessage) {
+	if c.GroupList != nil {
+		c.SetMsgGroupNames(g)
 	}
-	g.Sender.IsFriend = true
+	if c.FriendList != nil {
+		c.SetFriend(g)
+	}
+	// 使用 dispatch 方法
+	c.GroupMessageEvent.dispatch(c, g)
+	logger.Infof("%+v", g)
 }
 
-func (c *QQClient) SetMsgGroupNames(groupID DynamicInt64, g *message.GroupMessage) {
-	group := c.FindGroupByUin(groupID.ToInt64())
+func (c *QQClient) SetFriend(g *message.GroupMessage) {
+	g.Sender.IsFriend = c.FindFriend(g.Sender.Uin) != nil
+}
+
+func (c *QQClient) SetMsgGroupNames(g *message.GroupMessage) {
+	group := c.FindGroupByUin(g.GroupCode)
 	if group != nil {
 		g.GroupName = group.Name
 	} else {
-		logger.Warnf("Not found group name: %d", groupID.ToInt64())
+		logger.Warnf("Not found group name: %d", g.GroupCode)
 	}
 }
 
-func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID DynamicInt64, flash bool) {
+func (c *QQClient) SyncGroupMembers(groupID DynamicInt64, flash bool) {
 	if flash {
 		//logger.Info("start reload groups list")
 		err := c.ReloadGroupList()
@@ -770,7 +789,7 @@ func (c *QQClient) SyncGroupMembers(intern *intern.StringInterner, groupID Dynam
 	//c.GroupList[i].Members, err = c.getGroupMembers(c.GroupList[i], intern)
 	if group != nil {
 		var err error
-		group.Members, err = c.getGroupMembers(group, intern)
+		group.Members, err = c.GetGroupMembers(group)
 		if err != nil {
 			logger.Errorf("Failed to update group members: %v", err)
 		}
@@ -799,7 +818,7 @@ func (c *QQClient) StartWebSocketServer() {
 				//log.Printf("%s: %s", name, value)
 			}
 		}
-
+		go c.RefreshList()
 		c.handleConnection(ws)
 	})
 
@@ -811,6 +830,41 @@ func (c *QQClient) StartWebSocketServer() {
 	logger.Fatal(http.ListenAndServe(wsAddr, nil))
 	//log.Println("WebSocket server started on ws://0.0.0.0:15630")
 	//log.Fatal(http.ListenAndServe("0.0.0.0:15630", nil))
+}
+
+// RefreshList 刷新联系人
+func (c *QQClient) RefreshList() {
+	//time.Sleep(time.Second * 3)
+	logger.Info("start reload friends list")
+	err := c.ReloadFriendList()
+	if err != nil {
+		logger.WithError(err).Error("unable to load friends list")
+	}
+	logger.Infof("load %d friends", len(c.FriendList))
+	logger.Info("start reload groups list")
+	err = c.ReloadGroupList()
+	if err != nil {
+		logger.WithError(err).Error("unable to load groups list")
+	}
+	logger.Infof("load %d groups", len(c.GroupList))
+	logger.Info("start reload group members list")
+	err = c.ReloadGroupMembers()
+	if err != nil {
+		logger.WithError(err).Error("unable to load group members list")
+	} else {
+		logger.Info("load members done.")
+	}
+}
+
+func (c *QQClient) ReloadGroupMembers() error {
+	var err error
+	for _, group := range c.GroupList {
+		group.Members, err = c.GetGroupMembers(group)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
@@ -1578,8 +1632,49 @@ func (c *QQClient) groupMute(groupCode, memberUin int64, time uint32) {
 	_, _ = c.sendAndWait(c.buildGroupMutePacket(groupCode, memberUin, time))
 }
 
-func (c *QQClient) quitGroup(groupCode int64) {
-	_, _ = c.sendAndWait(c.buildQuitGroupPacket(groupCode))
+func (c *QQClient) quitGroup(group *GroupInfo) {
+	//_, _ = c.sendAndWait(c.buildQuitGroupPacket(groupCode))
+	//group = c.FindGroup(group.Code)
+	echo := generateEcho("set_group_leave")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "set_group_leave",
+		"params": map[string]interface{}{
+			"group_id":   group.Code,
+			"is_dismiss": false,
+			// "group_id":   strconv.FormatInt(group.Code, 10),
+			// "is_dismiss": strconv.FormatBool(false),
+		},
+		"echo": echo,
+	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseSetGroupLeave)
+	// 初始化 c.responseChans 映射
+	c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
+	c.responseSetLeave[echo] = respChan
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		if resp.Retcode == 0 {
+			sort.Slice(c.GroupList, func(i, j int) bool {
+				return c.GroupList[i].Code < c.GroupList[j].Code
+			})
+			i := sort.Search(len(c.GroupList), func(i int) bool {
+				return c.GroupList[i].Code >= group.Code
+			})
+			if i < len(c.GroupList) && c.GroupList[i].Code == group.Code {
+				c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
+			}
+			logger.Infof("退出群组成功")
+		} else {
+			logger.Errorf("退出群组失败: %v", resp.Message)
+		}
+	case <-time.After(10 * time.Second):
+		logger.Errorf("退出群组超时")
+	}
 }
 
 func (c *QQClient) KickGroupMembers(groupCode int64, msg string, block bool, memberUins ...int64) {

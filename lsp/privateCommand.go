@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Mrs4s/MiraiGo/client"
 	"github.com/Mrs4s/MiraiGo/message"
 	localdb "github.com/Sora233/DDBOT/lsp/buntdb"
 	"github.com/Sora233/DDBOT/lsp/concern"
@@ -799,7 +798,7 @@ func (c *LspPrivateCommand) QuitCommand() {
 			return
 		}
 	} else {
-		gi.Quit(&client.QQClient{Uin: c.bot.GetUin()})
+		gi.Quit((*(*(*(*(*(c)).Runtime).bot).Bot)).QQClient)
 		log.Debugf("已退出群【%v】", displayName)
 		c.textSend(fmt.Sprintf("已退出群【%v】", displayName))
 	}

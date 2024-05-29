@@ -117,7 +117,7 @@ func Run() {
 
 	// 刷新好友列表，群列表
 	//以后刷新
-	bot.RefreshList()
+	// bot.RefreshList()
 
 	lsp.Instance.PostStart(bot.Instance)
 	fmt.Println("运行完了lsp.Instance.PostStart(bot.Instance)")

@@ -8,6 +8,8 @@ DDBOT-WSa 是基于 DDBOT-ws 的修改版本，目的是恢复DDBOT的原有功�
 其它更详细的更动见更新日志。
 目前已经兼容：LLOnebot v3.x / NapCat v1.3.x / ws-plugin v0.6.x。
 
+目前已恢复大部分指令（除了：mode、好友申请、群邀请）。
+
 以下是原DDBOT-ws的README.md：
 
 DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送框架， 内置支持b站直播/动态，斗鱼直播，YTB直播/预约直播，虎牙直播，ACFUN直播，微博动态，
