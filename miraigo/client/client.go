@@ -769,11 +769,17 @@ func (c *QQClient) SetMsgGroupNames(g *message.GroupMessage) {
 
 func (c *QQClient) SyncGroupMembers(groupID DynamicInt64, flash bool) {
 	if flash {
-		//logger.Info("start reload groups list")
+		logger.Info("start reload groups list")
 		err := c.ReloadGroupList()
-		//logger.Infof("load %d groups", len(c.GroupList))
+		logger.Infof("load %d groups", len(c.GroupList))
 		if err != nil {
 			logger.WithError(err).Error("unable to load groups list")
+		}
+		err = c.ReloadGroupMembers()
+		if err != nil {
+			logger.WithError(err).Error("unable to load group members list")
+		} else {
+			logger.Info("load members done.")
 		}
 	}
 	group := c.FindGroupByUin(groupID.ToInt64())
@@ -859,6 +865,7 @@ func (c *QQClient) RefreshList() {
 func (c *QQClient) ReloadGroupMembers() error {
 	var err error
 	for _, group := range c.GroupList {
+		group.Members = nil
 		group.Members, err = c.GetGroupMembers(group)
 		if err != nil {
 			return err

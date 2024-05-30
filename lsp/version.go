@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	CommitId  = "a006"
-	BuildTime = "2024-5-29 21:22:00"
+	CommitId  = "a006a"
+	BuildTime = "2024-5-30 17:35:00"
 	Tags      = "DDBOT-WSa"
 )
 
