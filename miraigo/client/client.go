@@ -606,9 +606,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			// c.GroupMessageEvent.dispatch(c, g)
 			// logger.Infof("%+v", g)
 			go c.waitDataAndDispatch(g)
-		}
-
-		if wsmsg.MessageType == "private" {
+		} else if wsmsg.MessageType == "private" {
 			pMsg := &message.PrivateMessage{
 				Id:         int32(wsmsg.MessageID),
 				InternalId: 0,
@@ -689,34 +687,29 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 
 			logger.Infof("%+v", pMsg)
 		}
-		// 元事件
 		if wsmsg.PostType == "meta_event" {
-			// 生命周期
+			// 元事件
 			if wsmsg.SubType == "connect" {
 				// 刷新Bot.Uin
 				c.Uin = int64(wsmsg.SelfID)
 			}
 			logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
-		}
-		// 通知事件
-		if wsmsg.PostType == "notice" {
+		} else if wsmsg.PostType == "notice" {
+			// 通知事件
 			sync, flash := false, false
-			// 如果是权限变更，则仅刷新群成员列表
 			if wsmsg.NoticeType == "group_admin" {
+				// 如果是权限变更，则仅刷新群成员列表
 				sync = true
-				continue
-			}
-			// 根据是否与自身有关来选择性刷新群列表
-			if wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
+			} else if wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
+				// 根据是否与自身有关来选择性刷新群列表
 				sync = true
 				if wsmsg.UserID.ToInt64() == c.Uin || wsmsg.OperatorId.ToInt64() == c.Uin {
 					flash = true
 				} else {
 					flash = false
 				}
-			}
-			// 如果是好友事件，则更新好友信息
-			if wsmsg.NoticeType == "friend_add" {
+			} else if wsmsg.NoticeType == "friend_add" {
+				// 如果是好友事件，则更新好友信息
 				if c.FriendList != nil {
 					go c.ReloadFriendList()
 				}
@@ -728,14 +721,13 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				}
 			}
 			logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
-		}
-		// 请求事件
-		if wsmsg.PostType == "request" {
-			// 加好友邀请
+		} else if wsmsg.PostType == "request" {
+			// 请求事件
 			if wsmsg.RequestType == "friend" {
+				// 加好友邀请
 			}
-			// 加群邀请
 			if wsmsg.RequestType == "group" {
+				// 加群邀请
 			}
 			logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
 		}
@@ -768,6 +760,7 @@ func (c *QQClient) SetMsgGroupNames(g *message.GroupMessage) {
 }
 
 func (c *QQClient) SyncGroupMembers(groupID DynamicInt64, flash bool) {
+	//time.Sleep(time.Second * 3)
 	if flash {
 		logger.Info("start reload groups list")
 		err := c.ReloadGroupList()
@@ -781,26 +774,27 @@ func (c *QQClient) SyncGroupMembers(groupID DynamicInt64, flash bool) {
 		} else {
 			logger.Info("load members done.")
 		}
-	}
-	group := c.FindGroupByUin(groupID.ToInt64())
-	// sort.Slice(c.GroupList, func(i2, j int) bool {
-	// 	return c.GroupList[i2].Uin < c.GroupList[j].Uin
-	// })
-	// i := sort.Search(len(c.GroupList), func(i int) bool {
-	// 	return c.GroupList[i].Uin >= int64(groupID)
-	// })
-	// if i >= len(c.GroupList) || c.GroupList[i].Uin != int64(groupID) {
-	// 	return
-	// }
-	//c.GroupList[i].Members, err = c.getGroupMembers(c.GroupList[i], intern)
-	if group != nil {
-		var err error
-		group.Members, err = c.GetGroupMembers(group)
-		if err != nil {
-			logger.Errorf("Failed to update group members: %v", err)
-		}
 	} else {
-		logger.Warnf("Not found group: %d", groupID.ToInt64())
+		group := c.FindGroupByUin(groupID.ToInt64())
+		// sort.Slice(c.GroupList, func(i2, j int) bool {
+		// 	return c.GroupList[i2].Uin < c.GroupList[j].Uin
+		// })
+		// i := sort.Search(len(c.GroupList), func(i int) bool {
+		// 	return c.GroupList[i].Uin >= int64(groupID)
+		// })
+		// if i >= len(c.GroupList) || c.GroupList[i].Uin != int64(groupID) {
+		// 	return
+		// }
+		//c.GroupList[i].Members, err = c.getGroupMembers(c.GroupList[i], intern)
+		if group != nil {
+			var err error
+			group.Members, err = c.GetGroupMembers(group)
+			if err != nil {
+				logger.Errorf("Failed to update group members: %v", err)
+			}
+		} else {
+			logger.Warnf("Not found group: %d", groupID.ToInt64())
+		}
 	}
 }
 
@@ -840,7 +834,14 @@ func (c *QQClient) StartWebSocketServer() {
 
 // RefreshList 刷新联系人
 func (c *QQClient) RefreshList() {
-	//time.Sleep(time.Second * 3)
+	reloadDelay := config.GlobalConfig.GetBool("reloadDelay.enable")
+	if reloadDelay {
+		logger.Info("enabled reload delay")
+		var Delay time.Duration
+		Delay = config.GlobalConfig.GetDuration("reloadDelay.time")
+		logger.Infof("delay time: %ss", strconv.FormatFloat(Delay.Seconds(), 'f', 0, 64))
+		time.Sleep(Delay)
+	}
 	logger.Info("start reload friends list")
 	err := c.ReloadFriendList()
 	if err != nil {
@@ -1284,14 +1285,11 @@ func generateEcho(action string) string {
 
 func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 	echo := generateEcho("get_group_list")
-	//botqq := config.GlobalConfig.GetString("botqq")
 	// 构建请求
 	req := map[string]interface{}{
 		"action": "get_group_list",
-		"params": map[string]string{
-			//"botqq": botqq,
-		},
-		"echo": echo,
+		"params": map[string]string{},
+		"echo":   echo,
 	}
 	// 创建响应通道并添加到映射中
 	respChan := make(chan *ResponseGroupData)

@@ -3,6 +3,13 @@ package template
 import (
 	"encoding/base64"
 	"fmt"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/Mrs4s/MiraiGo/client"
 	"github.com/Mrs4s/MiraiGo/message"
 	localdb "github.com/Sora233/DDBOT/lsp/buntdb"
@@ -10,12 +17,6 @@ import (
 	"github.com/Sora233/DDBOT/lsp/mmsg"
 	localutils "github.com/Sora233/DDBOT/utils"
 	"github.com/shopspring/decimal"
-	"math/rand"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strings"
-	"time"
 )
 
 var funcsExt = make(FuncMap)
@@ -277,6 +278,30 @@ func openFile(path string) []byte {
 		return nil
 	}
 	return data
+}
+
+func updateFile(path string, data string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		logger.Errorf("template: openFile <%v> error %v", path, err)
+		return err
+	}
+	defer file.Close()
+	_, err = file.WriteString(data)
+	if err != nil {
+		logger.Errorf("template: updateFile <%v> error %v", path, err)
+		return err
+	}
+	return nil
+}
+
+func writeFile(path string, data string) error {
+	err := os.WriteFile(path, []byte(data), 0644)
+	if err != nil {
+		logger.Errorf("template: writeFile <%v> error %v", path, err)
+		return err
+	}
+	return nil
 }
 
 type ddError struct {

@@ -7,14 +7,15 @@ package template
 import (
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/huandu/xstrings"
-	"github.com/shopspring/decimal"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/google/uuid"
+	"github.com/huandu/xstrings"
+	"github.com/shopspring/decimal"
 )
 
 // FuncMap is the type of the map defining the mapping from names to functions.
@@ -64,18 +65,20 @@ func builtins() FuncMap {
 		"bot_uin":     botUin,
 
 		// DDBOT common
-		"hour":     hour,
-		"minute":   minute,
-		"second":   second,
-		"month":    month,
-		"year":     year,
-		"day":      day,
-		"yearday":  yearday,
-		"weekday":  weekday,
-		"cooldown": cooldown,
-		"openFile": openFile,
-		"abort":    abort,
-		"fin":      fin,
+		"hour":       hour,
+		"minute":     minute,
+		"second":     second,
+		"month":      month,
+		"year":       year,
+		"day":        day,
+		"yearday":    yearday,
+		"weekday":    weekday,
+		"cooldown":   cooldown,
+		"openFile":   openFile,
+		"updateFile": updateFile,
+		"writeFile":  writeFile,
+		"abort":      abort,
+		"fin":        fin,
 
 		// cast
 		"float64": toFloat64,

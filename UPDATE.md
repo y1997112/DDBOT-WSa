@@ -1,4 +1,13 @@
 ## DDBOT最近更新日志
+- 2024-06-03 v0.0.7a(WSa)
+  - 重新启用BOT信息的延迟加载（可在配置文件中修改延迟时间）
+  - 修改收到群管理变动事件后不更新群员信息的问题
+  - 更改了部分判断逻辑，清理无效操作
+  - Template模板增加了writeFile、updateFile函数
+    - 覆盖写入：writeFile(path, content) 
+    - 追加写入：updateFile(path, content)
+    - 文本支持\n等转义字符的操作
+  - 
 - 2024-05-30 v0.0.6a(WSa)
   - 紧急修复自身加、退群后不及时更新群员信息的问题
 

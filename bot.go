@@ -173,11 +173,16 @@ autoreply: # 自定义命令自动回复，自定义命令通过模板发送消�
 customCommandPrefix:
   签到: ""
   
- 
-
+# 日志等级，可选值：debug / info / warn / error / fatal / panic
 logLevel: info
 
+# ws-server 地址，默认监听全部请求，如需限制请修改为指定ip:端口
 ws-server: 0.0.0.0:15630
+
+# 延迟加载好友、群组、群员信息
+reloadDelay:
+  enable: true # 是否启用数据延迟加载
+  time: 3s # 延迟时间，默认为3秒
 `
 	// win上用记事本打开不会正确换行
 	if runtime.GOOS == "windows" {
