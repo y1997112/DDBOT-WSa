@@ -729,23 +729,24 @@ func (l *Lsp) sendPrivateMessage(uin int64, msg *message.SendingMessage) (res *m
 	// 	return &message.PrivateMessage{Id: -1, Elements: msg.Elements}
 	// }
 	if msg == nil {
-		logger.WithFields(localutils.FriendLogFields(uin)).Debug("send with nil message")
+		logger.WithFields(localutils.FriendLogFields(uin)).Debug("send with nil private message")
 		return &message.PrivateMessage{Id: -1}
 	}
+	logger.Debugf("发送私聊消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 		return element != nil
 	})
 	if len(msg.Elements) == 0 {
-		logger.WithFields(localutils.FriendLogFields(uin)).Debug("send with empty message")
+		logger.WithFields(localutils.FriendLogFields(uin)).Debug("send with empty private message")
 		return &message.PrivateMessage{Id: -1}
 	}
 	var newstring = msgstringer.MsgToString(msg.Elements)
 	res = bot.Instance.SendPrivateMessage(uin, msg, newstring)
-	// if res == nil || res.Id == -1 {
-	// 	logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
-	// 		WithFields(localutils.GroupLogFields(uin)).
-	// 		Errorf("发送消息失败")
-	// }
+	if res == nil || res.Id == -1 {
+		logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
+			WithFields(localutils.GroupLogFields(uin)).
+			Errorf("发送私聊消息失败")
+	}
 	if res == nil {
 		res = &message.PrivateMessage{Id: -1, Elements: msg.Elements}
 	}
@@ -756,7 +757,6 @@ func (l *Lsp) sendPrivateMessage(uin int64, msg *message.SendingMessage) (res *m
 // miraigo偶尔发送消息会panic？！
 func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, recovered ...bool) (res *message.GroupMessage) {
 	//fmt.Printf("运行到发信息了%v\n", msgstringer.MsgToString(msg.Elements))
-	logger.Debugf("发送消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	defer func() {
 		if e := recover(); e != nil {
 			if len(recovered) == 0 {
@@ -783,36 +783,37 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 	// }
 	if msg == nil {
 		//logger.Debug("消息为空，返回")
-		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil message")
+		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil group message")
 		return &message.GroupMessage{Id: -1}
 	}
+	logger.Debugf("发送群消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	// msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 	// 	return element != nil
 	// })
 	if len(msg.Elements) == 0 {
 		//logger.Debug("消息元素为空，返回")
-		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with empty message")
+		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with empty group message")
 		return &message.GroupMessage{Id: -1}
 	}
 	var newstring = msgstringer.MsgToString(msg.Elements)
 	res = bot.Instance.SendGroupMessage(groupCode, msg, newstring)
-	// if res == nil || res.Id == -1 {
-	// 	if msg.Count(func(e message.IMessageElement) bool {
-	// 		return e.Type() == message.At && e.(*message.AtElement).Target == 0
-	// 	}) > 0 {
-	// 		logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
-	// 			WithFields(localutils.GroupLogFields(groupCode)).
-	// 			Errorf("发送群消息失败，可能是@全员次数用尽")
-	// 	} else {
-	// 		logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
-	// 			WithFields(localutils.GroupLogFields(groupCode)).
-	// 			Errorf("发送群消息失败，可能是被禁言或者账号被风控")
-	// 	}
-	// }
-	if res == nil {
-		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil message")
-		res = &message.GroupMessage{Id: -1, Elements: msg.Elements}
+	if res == nil || res.Id == -1 {
+		if msg.Count(func(e message.IMessageElement) bool {
+			return e.Type() == message.At && e.(*message.AtElement).Target == 0
+		}) > 0 {
+			logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
+				WithFields(localutils.GroupLogFields(groupCode)).
+				Errorf("发送群消息失败，可能是@全员次数用尽")
+		} else {
+			logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
+				WithFields(localutils.GroupLogFields(groupCode)).
+				Errorf("发送群消息失败，可能是被禁言或者账号被风控")
+		}
 	}
+	// if res == nil {
+	// 	logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("failed to send message")
+	// 	res = &message.GroupMessage{Id: -1, Elements: msg.Elements}
+	// }
 	return res
 }
 
