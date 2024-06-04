@@ -757,8 +757,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				//logger.Debugf("准备c.PrivateMessageEvent.dispatch(c, pMsg)")
 				c.PrivateMessageEvent.dispatch(c, pMsg)
 			}
-
-			logger.Infof("%+v", pMsg)
+			go c.OutputReceivingMessage(pMsg)
 		} else if wsmsg.MessageType == "" {
 			if wsmsg.PostType == "meta_event" {
 				// 元事件
@@ -808,6 +807,46 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 	}
 }
 
+func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
+	mode := false
+	var content []message.IMessageElement
+	if msg, ok := Msg.(*message.GroupMessage); ok {
+		content = msg.GetElements()
+	} else if msg, ok := Msg.(*message.PrivateMessage); ok {
+		content = msg.GetElements()
+		mode = true
+	}
+	var tmpText string
+	for _, elem := range content {
+		if text, ok := elem.(*message.TextElement); ok {
+			if len(text.Content) > 75 {
+				tmpText += tmpText[:75] + "..."
+			} else {
+				tmpText += text.Content
+			}
+		} else if _, ok := elem.(*message.AtElement); ok {
+			tmpText += "[At]"
+		} else if _, ok := elem.(*message.FaceElement); ok {
+			tmpText += "[Face]"
+		} else if _, ok := elem.(*message.GroupImageElement); ok {
+			tmpText += "[Image]"
+		} else if _, ok := elem.(*message.FriendImageElement); ok {
+			tmpText += "[Image]"
+		} else if _, ok := elem.(*message.ReplyElement); ok {
+			tmpText += "[Reply]"
+		} else if _, ok := elem.(*message.VoiceElement); ok {
+			tmpText += "[Record]"
+		}
+	}
+	if !mode {
+		logger.Infof("收到群 %s(%d) 内 %s(%d) 的消息：%s (%d)", Msg.(*message.GroupMessage).GroupName, Msg.(*message.GroupMessage).GroupCode, Msg.(*message.GroupMessage).Sender.Nickname, Msg.(*message.GroupMessage).Sender.Uin, tmpText, Msg.(*message.GroupMessage).Id)
+		logger.Debugf("%+v", Msg.(*message.GroupMessage))
+	} else {
+		logger.Infof("收到 %s(%d) 的私聊消息：%s (%d)", Msg.(*message.PrivateMessage).Sender.Nickname, Msg.(*message.PrivateMessage).Sender.Uin, tmpText, Msg.(*message.PrivateMessage).Id)
+		logger.Debugf("%+v", Msg.(*message.PrivateMessage))
+	}
+}
+
 func (c *QQClient) waitDataAndDispatch(g *message.GroupMessage) {
 	if c.GroupList != nil {
 		c.SetMsgGroupNames(g)
@@ -817,28 +856,7 @@ func (c *QQClient) waitDataAndDispatch(g *message.GroupMessage) {
 	}
 	// 使用 dispatch 方法
 	c.GroupMessageEvent.dispatch(c, g)
-	var tmpText string
-	content := g.GetElements()
-	for _, elem := range content {
-		if text, ok := elem.(*message.TextElement); ok {
-			tmpText = text.Content
-			if len(text.Content) > 75 {
-				tmpText = tmpText[:75] + "..."
-			}
-		} else if _, ok := elem.(*message.AtElement); ok {
-			tmpText += "[At]"
-		} else if _, ok := elem.(*message.FaceElement); ok {
-			tmpText += "[Face]"
-		} else if _, ok := elem.(*message.GroupImageElement); ok {
-			tmpText += "[Image]"
-		} else if _, ok := elem.(*message.ReplyElement); ok {
-			tmpText += "[Reply]"
-		} else if _, ok := elem.(*message.VoiceElement); ok {
-			tmpText += "[Record]"
-		}
-	}
-	logger.Infof("收到群 %s(%d) 内 %s(%d) 的消息：%s (%d)", g.GroupName, g.GroupCode, g.Sender.Nickname, g.Sender.Uin, tmpText, g.Id)
-	logger.Debugf("%+v", g)
+	c.OutputReceivingMessage(g)
 }
 
 func (c *QQClient) SetFriend(g *message.GroupMessage) {
