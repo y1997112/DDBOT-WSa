@@ -732,7 +732,7 @@ func (l *Lsp) sendPrivateMessage(uin int64, msg *message.SendingMessage) (res *m
 		logger.WithFields(localutils.FriendLogFields(uin)).Debug("send with nil private message")
 		return &message.PrivateMessage{Id: -1}
 	}
-	logger.Debugf("发送私聊消息：%v\n", msgstringer.MsgToString(msg.Elements))
+	//logger.Debugf("发送私聊消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 		return element != nil
 	})
@@ -786,7 +786,7 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil group message")
 		return &message.GroupMessage{Id: -1}
 	}
-	logger.Debugf("发送群消息：%v\n", msgstringer.MsgToString(msg.Elements))
+	//logger.Debugf("发送群消息：%v\n", msgstringer.MsgToString(msg.Elements))
 	// msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
 	// 	return element != nil
 	// })

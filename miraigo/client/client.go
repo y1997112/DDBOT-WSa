@@ -596,6 +596,43 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 								g.Elements = append(g.Elements, &message.AtElement{Target: int64(qq), Display: g.Sender.DisplayName()})
 							}
 						}
+					case "face":
+						face, ok := contentMap["data"].(map[string]interface{})["id"].(string)
+						if ok {
+							faceID, _ := strconv.Atoi(face)
+							g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
+						}
+					case "image":
+						image, ok := contentMap["data"].(map[string]interface{})
+						if ok {
+							size, _ := strconv.Atoi(image["file_size"].(string))
+							g.Elements = append(g.Elements, &message.GroupImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							})
+						}
+					case "reply":
+						replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string)
+						if ok {
+							replyID, _ := strconv.Atoi(replyID)
+							g.Elements = append(g.Elements, &message.ReplyElement{
+								ReplySeq: int32(replyID),
+								Sender:   g.Sender.Uin,
+								GroupID:  g.GroupCode,
+								Time:     g.Time,
+								Elements: g.Elements,
+							})
+						}
+					case "record":
+						record, ok := contentMap["data"].(map[string]interface{})
+						if ok {
+							size, _ := strconv.Atoi(record["file_size"].(string))
+							g.Elements = append(g.Elements, &message.VoiceElement{
+								Name: record["file"].(string),
+								Url:  record["path"].(string),
+								Size: int32(size),
+							})
+						}
 					}
 				}
 			}
@@ -673,6 +710,42 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 								pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
 							}
 						}
+					case "face":
+						face, ok := contentMap["data"].(map[string]interface{})["id"].(string)
+						if ok {
+							faceID, _ := strconv.Atoi(face)
+							pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+						}
+					case "image":
+						image, ok := contentMap["data"].(map[string]interface{})
+						if ok {
+							size, _ := strconv.Atoi(image["file_size"].(string))
+							pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							})
+						}
+					case "reply":
+						replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string)
+						if ok {
+							replyID, _ := strconv.Atoi(replyID)
+							pMsg.Elements = append(pMsg.Elements, &message.ReplyElement{
+								ReplySeq: int32(replyID),
+								Sender:   pMsg.Sender.Uin,
+								Time:     pMsg.Time,
+								Elements: pMsg.Elements,
+							})
+						}
+					case "record":
+						record, ok := contentMap["data"].(map[string]interface{})
+						if ok {
+							size, _ := strconv.Atoi(record["file_size"].(string))
+							pMsg.Elements = append(pMsg.Elements, &message.VoiceElement{
+								Name: record["file"].(string),
+								Url:  record["path"].(string),
+								Size: int32(size),
+							})
+						}
 					}
 				}
 			}
@@ -686,50 +759,51 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			}
 
 			logger.Infof("%+v", pMsg)
-		}
-		if wsmsg.PostType == "meta_event" {
-			// 元事件
-			if wsmsg.SubType == "connect" {
-				// 刷新Bot.Uin
-				c.Uin = int64(wsmsg.SelfID)
-			}
-			logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
-		} else if wsmsg.PostType == "notice" {
-			// 通知事件
-			sync, flash := false, false
-			if wsmsg.NoticeType == "group_admin" {
-				// 如果是权限变更，则仅刷新群成员列表
-				sync = true
-			} else if wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
-				// 根据是否与自身有关来选择性刷新群列表
-				sync = true
-				if wsmsg.UserID.ToInt64() == c.Uin || wsmsg.OperatorId.ToInt64() == c.Uin {
-					flash = true
-				} else {
-					flash = false
+		} else if wsmsg.MessageType == "" {
+			if wsmsg.PostType == "meta_event" {
+				// 元事件
+				if wsmsg.SubType == "connect" {
+					// 刷新Bot.Uin
+					c.Uin = int64(wsmsg.SelfID)
 				}
-			} else if wsmsg.NoticeType == "friend_add" {
-				// 如果是好友事件，则更新好友信息
-				if c.FriendList != nil {
-					go c.ReloadFriendList()
+				logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
+			} else if wsmsg.PostType == "notice" {
+				// 通知事件
+				sync, flash := false, false
+				if wsmsg.NoticeType == "group_admin" {
+					// 如果是权限变更，则仅刷新群成员列表
+					sync = true
+				} else if wsmsg.NoticeType == "group_decrease" || wsmsg.NoticeType == "group_increase" {
+					// 根据是否与自身有关来选择性刷新群列表
+					sync = true
+					if wsmsg.UserID.ToInt64() == c.Uin || wsmsg.OperatorId.ToInt64() == c.Uin {
+						flash = true
+					} else {
+						flash = false
+					}
+				} else if wsmsg.NoticeType == "friend_add" {
+					// 如果是好友事件，则更新好友信息
+					if c.FriendList != nil {
+						go c.ReloadFriendList()
+					}
 				}
-			}
-			// 选择性执行上述结果
-			if sync {
-				if c.GroupList != nil {
-					go c.SyncGroupMembers(wsmsg.GroupID, flash)
+				// 选择性执行上述结果
+				if sync {
+					if c.GroupList != nil {
+						go c.SyncGroupMembers(wsmsg.GroupID, flash)
+					}
 				}
+				logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
+			} else if wsmsg.PostType == "request" {
+				// 请求事件
+				if wsmsg.RequestType == "friend" {
+					// 加好友邀请
+				}
+				if wsmsg.RequestType == "group" {
+					// 加群邀请
+				}
+				logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
 			}
-			logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
-		} else if wsmsg.PostType == "request" {
-			// 请求事件
-			if wsmsg.RequestType == "friend" {
-				// 加好友邀请
-			}
-			if wsmsg.RequestType == "group" {
-				// 加群邀请
-			}
-			logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
 		}
 	}
 }
@@ -743,7 +817,28 @@ func (c *QQClient) waitDataAndDispatch(g *message.GroupMessage) {
 	}
 	// 使用 dispatch 方法
 	c.GroupMessageEvent.dispatch(c, g)
-	logger.Infof("%+v", g)
+	var tmpText string
+	content := g.GetElements()
+	for _, elem := range content {
+		if text, ok := elem.(*message.TextElement); ok {
+			tmpText = text.Content
+			if len(text.Content) > 75 {
+				tmpText = tmpText[:75] + "..."
+			}
+		} else if _, ok := elem.(*message.AtElement); ok {
+			tmpText += "[At]"
+		} else if _, ok := elem.(*message.FaceElement); ok {
+			tmpText += "[Face]"
+		} else if _, ok := elem.(*message.GroupImageElement); ok {
+			tmpText += "[Image]"
+		} else if _, ok := elem.(*message.ReplyElement); ok {
+			tmpText += "[Reply]"
+		} else if _, ok := elem.(*message.VoiceElement); ok {
+			tmpText += "[Record]"
+		}
+	}
+	logger.Infof("收到群 %s(%d) 内 %s(%d) 的消息：%s (%d)", g.GroupName, g.GroupCode, g.Sender.Nickname, g.Sender.Uin, tmpText, g.Id)
+	logger.Debugf("%+v", g)
 }
 
 func (c *QQClient) SetFriend(g *message.GroupMessage) {
@@ -762,7 +857,7 @@ func (c *QQClient) SetMsgGroupNames(g *message.GroupMessage) {
 func (c *QQClient) SyncGroupMembers(groupID DynamicInt64, flash bool) {
 	//time.Sleep(time.Second * 3)
 	if flash {
-		logger.Info("start reload groups list")
+		//logger.Info("start reload groups list")
 		err := c.ReloadGroupList()
 		logger.Infof("load %d groups", len(c.GroupList))
 		if err != nil {
@@ -836,25 +931,25 @@ func (c *QQClient) StartWebSocketServer() {
 func (c *QQClient) RefreshList() {
 	reloadDelay := config.GlobalConfig.GetBool("reloadDelay.enable")
 	if reloadDelay {
-		logger.Info("enabled reload delay")
+		//logger.Info("enabled reload delay")
 		var Delay time.Duration
 		Delay = config.GlobalConfig.GetDuration("reloadDelay.time")
 		logger.Infof("delay time: %ss", strconv.FormatFloat(Delay.Seconds(), 'f', 0, 64))
 		time.Sleep(Delay)
 	}
-	logger.Info("start reload friends list")
+	//logger.Info("start reload friends list")
 	err := c.ReloadFriendList()
 	if err != nil {
 		logger.WithError(err).Error("unable to load friends list")
 	}
 	logger.Infof("load %d friends", len(c.FriendList))
-	logger.Info("start reload groups list")
+	//logger.Info("start reload groups list")
 	err = c.ReloadGroupList()
 	if err != nil {
 		logger.WithError(err).Error("unable to load groups list")
 	}
 	logger.Infof("load %d groups", len(c.GroupList))
-	logger.Info("start reload group members list")
+	//logger.Info("start reload group members list")
 	err = c.ReloadGroupMembers()
 	if err != nil {
 		logger.WithError(err).Error("unable to load group members list")

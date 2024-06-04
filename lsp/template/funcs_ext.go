@@ -102,6 +102,174 @@ func botUin() int64 {
 	return localutils.GetBot().GetUin()
 }
 
+func setScore(uin int64, groupCode int64, num int64) int64 {
+	// date := time.Now().Format("20060102")
+
+	if num < 0 {
+		logger.Error("template: set score num must be positive")
+		return -1
+	}
+
+	var score int64
+	err := localdb.RWCover(func() error {
+		var err error
+		scoreKey := localdb.Key("Score", groupCode, uin)
+		// dateMarker := localdb.Key("ScoreDate", groupCode, uin, date)
+
+		score, err = localdb.GetInt64(scoreKey, localdb.IgnoreNotFoundOpt())
+		if err != nil {
+			return err
+		}
+		// if localdb.Exist(dateMarker) {
+		// 	logger = logger.WithField("current_score", score)
+		// 	return nil
+		// }
+
+		err = localdb.SetInt64(scoreKey, num)
+		if err != nil {
+			return err
+		}
+
+		score, err = localdb.GetInt64(scoreKey, localdb.IgnoreNotFoundOpt())
+		if err != nil {
+			return err
+		}
+
+		// err = localdb.Set(dateMarker, "", localdb.SetExpireOpt(time.Hour*24*3))
+		// if err != nil {
+		// 	return err
+		// }
+		logger = logger.WithField("new_score", score)
+		return nil
+	})
+	if err != nil {
+		logger.Errorf("add score error %v", err)
+		return -1
+	}
+	return score
+}
+
+func addScore(uin int64, groupCode int64, num int64) int64 {
+	// date := time.Now().Format("20060102")
+
+	if num <= 0 {
+		logger.Error("template: add score num must be positive")
+		return -1
+	}
+
+	var score int64
+	err := localdb.RWCover(func() error {
+		var err error
+		scoreKey := localdb.Key("Score", groupCode, uin)
+		// dateMarker := localdb.Key("ScoreDate", groupCode, uin, date)
+
+		score, err = localdb.GetInt64(scoreKey, localdb.IgnoreNotFoundOpt())
+		if err != nil {
+			return err
+		}
+		// if localdb.Exist(dateMarker) {
+		// 	logger = logger.WithField("current_score", score)
+		// 	return nil
+		// }
+
+		score, err = localdb.IncInt64(scoreKey, num)
+		if err != nil {
+			return err
+		}
+
+		// err = localdb.Set(dateMarker, "", localdb.SetExpireOpt(time.Hour*24*3))
+		// if err != nil {
+		// 	return err
+		// }
+		logger = logger.WithField("new_score", score)
+		return nil
+	})
+	if err != nil {
+		logger.Errorf("add score error %v", err)
+		return -1
+	}
+	return score
+}
+
+func subScore(uin int64, groupCode int64, num int64) int64 {
+	// date := time.Now().Format("20060102")
+
+	if num <= 0 {
+		logger.Error("template: sub score num must be positive")
+		return -1
+	}
+
+	var score int64
+	err := localdb.RWCover(func() error {
+		var err error
+		scoreKey := localdb.Key("Score", groupCode, uin)
+		// dateMarker := localdb.Key("ScoreDate", groupCode, uin, date)
+
+		score, err = localdb.GetInt64(scoreKey, localdb.IgnoreNotFoundOpt())
+		if err != nil {
+			return err
+		}
+		// if localdb.Exist(dateMarker) {
+		// 	logger = logger.WithField("current_score", score)
+		// 	return nil
+		// }
+
+		score, err = localdb.IncInt64(scoreKey, -num)
+		if err != nil {
+			return err
+		}
+
+		// err = localdb.Set(dateMarker, "", localdb.SetExpireOpt(time.Hour*24*3))
+		// if err != nil {
+		// 	return err
+		// }
+		logger = logger.WithField("new_score", score)
+		return nil
+	})
+	if err != nil {
+		logger.Errorf("sub score error %v", err)
+		return -1
+	}
+	return score
+}
+
+func getScore(uin int64, groupCode int64) int64 {
+	// date := time.Now().Format("20060102")
+
+	var score int64
+	err := localdb.RWCover(func() error {
+		var err error
+		scoreKey := localdb.Key("Score", groupCode, uin)
+		// dateMarker := localdb.Key("ScoreDate", groupCode, uin, date)
+
+		score, err = localdb.GetInt64(scoreKey, localdb.IgnoreNotFoundOpt())
+		if err != nil {
+			return err
+		}
+		// if localdb.Exist(dateMarker) {
+		// 	logger = logger.WithField("current_score", score)
+		// 	return nil
+		// }
+
+		// score, err = localdb.IncInt64(scoreKey, num)
+		// if err != nil {
+		// 	return err
+		// }
+
+		// err = localdb.Set(dateMarker, "", localdb.SetExpireOpt(time.Hour*24*3))
+		// if err != nil {
+		// 	return err
+		// }
+		logger = logger.WithField("now_score", score)
+		return nil
+	})
+	if err != nil {
+		logger.Errorf("get score error %v", err)
+		return -1
+	}
+	return score
+}
+
 func picUri(uri string) (e *mmsg.ImageBytesElement) {
 	logger := logger.WithField("uri", uri)
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {

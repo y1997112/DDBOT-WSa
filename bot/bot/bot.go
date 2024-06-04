@@ -262,7 +262,7 @@ func Login() {
 // RefreshList 刷新联系人
 func RefreshList() {
 	time.Sleep(time.Second * 5)
-	logger.Info("start reload friends list")
+	//logger.Info("start reload friends list")
 	err := Instance.ReloadFriendList()
 	if err != nil {
 		logger.WithError(err).Error("unable to load friends list")
@@ -274,7 +274,7 @@ func RefreshList() {
 		logger.WithError(err).Error("unable to load groups list")
 	}
 	logger.Infof("load %d groups", len(Instance.GroupList))
-	logger.Info("start reload group members list")
+	//logger.Info("start reload group members list")
 	for _, group := range Instance.GroupList {
 		group.Members, err = Instance.GetGroupMembers(group)
 		if err != nil {

@@ -1,13 +1,26 @@
 ## DDBOT最近更新日志
+- 2024-06-05 v0.0.8(WSa)
+  - 恢复部分原生消息发送判定
+  - 修复日志输出导致的ws阻塞
+  - 优化群消息发送判定的log记录
+  - 改进loglevel为info下的日志输出
+  - 调整、取消部分日志输出，避免重复
+  - 增加DD可以接收到的消息类型（文本、At、图片、语音、表情、引用）
+  - Template模板增加了4个函数，妈妈再也不用担心积分没用了>_0
+    - 增加积分：addScore(uin int64, groupCode int64, num int64) 
+    - 减少积分：subScore(uin int64, groupCode int64, num int64)
+    - 设置积分：setScore(uin int64, groupCode int64, num int64) 
+    - 读取积分：getScore(uin int64, groupCode int64)
+
 - 2024-06-03 v0.0.7a(WSa)
   - 重新启用BOT信息的延迟加载（可在配置文件中修改延迟时间）
   - 修改收到群管理变动事件后不更新群员信息的问题
   - 更改了部分判断逻辑，清理无效操作
   - Template模板增加了writeFile、updateFile函数
-    - 覆盖写入：writeFile(path, content) 
-    - 追加写入：updateFile(path, content)
+    - 覆盖写入：writeFile(path string, content string) 
+    - 追加写入：updateFile(path string, content string)
     - 文本支持\n等转义字符的操作
-  - 
+  
 - 2024-05-30 v0.0.6a(WSa)
   - 紧急修复自身加、退群后不及时更新群员信息的问题
 
