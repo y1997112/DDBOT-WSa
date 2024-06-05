@@ -535,7 +535,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 			// 	groupName = c.FindGroupByUin(wsmsg.GroupID.ToInt64()).Name
 			// }
 			g := &message.GroupMessage{
-				Id:        int32(wsmsg.MessageSeq),
+				Id:        int32(wsmsg.MessageID),
 				GroupCode: wsmsg.GroupID.ToInt64(),
 				GroupName: "",
 				// GroupName: groupName,
@@ -581,10 +581,10 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 						}
 					case "at":
 						if data, ok := contentMap["data"].(map[string]interface{}); ok {
-							var qq int
+							var qq int64
 							if qqData, ok := data["qq"].(string); ok {
 								if qqData != "all" {
-									qq, err = strconv.Atoi(qqData)
+									qq, err = strconv.ParseInt(qqData, 10, 64)
 									if err != nil {
 										logger.Errorf("Failed to parse qq: %v", err)
 										continue
@@ -592,45 +592,61 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 								} else {
 									qq = 0
 								}
-								//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-								g.Elements = append(g.Elements, &message.AtElement{Target: int64(qq), Display: g.Sender.DisplayName()})
+							} else if qqData, ok := data["qq"].(int64); ok {
+								qq = qqData
 							}
+							//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+							g.Elements = append(g.Elements, &message.AtElement{Target: qq, Display: g.Sender.DisplayName()})
 						}
 					case "face":
-						face, ok := contentMap["data"].(map[string]interface{})["id"].(string)
-						if ok {
-							faceID, _ := strconv.Atoi(face)
-							g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
+						faceID := 0
+						if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+							faceID, _ = strconv.Atoi(face)
+						} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+							faceID = int(face)
 						}
+						g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
 					case "image":
 						image, ok := contentMap["data"].(map[string]interface{})
 						if ok {
-							size, _ := strconv.Atoi(image["file_size"].(string))
+							size := 0
+							if tmp, ok := image["file_size"].(string); ok {
+								size, err = strconv.Atoi(tmp)
+							}
 							g.Elements = append(g.Elements, &message.GroupImageElement{
 								Size: int32(size),
 								Url:  image["url"].(string),
 							})
 						}
 					case "reply":
-						replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string)
-						if ok {
-							replyID, _ := strconv.Atoi(replyID)
-							g.Elements = append(g.Elements, &message.ReplyElement{
-								ReplySeq: int32(replyID),
-								Sender:   g.Sender.Uin,
-								GroupID:  g.GroupCode,
-								Time:     g.Time,
-								Elements: g.Elements,
-							})
+						replySeq := 0
+						if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+							replySeq, _ = strconv.Atoi(replyID)
+						} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+							replySeq = int(replyID)
 						}
+						g.Elements = append(g.Elements, &message.ReplyElement{
+							ReplySeq: int32(replySeq),
+							Sender:   g.Sender.Uin,
+							GroupID:  g.GroupCode,
+							Time:     g.Time,
+							Elements: g.Elements,
+						})
 					case "record":
 						record, ok := contentMap["data"].(map[string]interface{})
 						if ok {
-							size, _ := strconv.Atoi(record["file_size"].(string))
+							fileSize := 0
+							filePath := ""
+							if size, ok := record["file_size"].(string); ok {
+								fileSize, _ = strconv.Atoi(size)
+							}
+							if path, ok := record["path"].(string); ok {
+								filePath = path
+							}
 							g.Elements = append(g.Elements, &message.VoiceElement{
 								Name: record["file"].(string),
-								Url:  record["path"].(string),
-								Size: int32(size),
+								Url:  filePath,
+								Size: int32(fileSize),
 							})
 						}
 					}
@@ -695,10 +711,10 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 						}
 					case "at":
 						if data, ok := contentMap["data"].(map[string]interface{}); ok {
-							var qq int
+							var qq int64
 							if qqData, ok := data["qq"].(string); ok {
 								if qqData != "all" {
-									qq, err = strconv.Atoi(qqData)
+									qq, err = strconv.ParseInt(qqData, 10, 64)
 									if err != nil {
 										logger.Errorf("Failed to parse qq: %v", err)
 										continue
@@ -706,44 +722,60 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 								} else {
 									qq = 0
 								}
-								//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-								pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
+							} else if qqData, ok := data["qq"].(int64); ok {
+								qq = qqData
 							}
+							//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+							pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
 						}
 					case "face":
-						face, ok := contentMap["data"].(map[string]interface{})["id"].(string)
-						if ok {
-							faceID, _ := strconv.Atoi(face)
-							pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+						faceID := 0
+						if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+							faceID, _ = strconv.Atoi(face)
+						} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+							faceID = int(face)
 						}
+						pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
 					case "image":
 						image, ok := contentMap["data"].(map[string]interface{})
 						if ok {
-							size, _ := strconv.Atoi(image["file_size"].(string))
+							size := 0
+							if tmp, ok := image["file_size"].(string); ok {
+								size, err = strconv.Atoi(tmp)
+							}
 							pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
 								Size: int32(size),
 								Url:  image["url"].(string),
 							})
 						}
 					case "reply":
-						replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string)
-						if ok {
-							replyID, _ := strconv.Atoi(replyID)
-							pMsg.Elements = append(pMsg.Elements, &message.ReplyElement{
-								ReplySeq: int32(replyID),
-								Sender:   pMsg.Sender.Uin,
-								Time:     pMsg.Time,
-								Elements: pMsg.Elements,
-							})
+						replySeq := 0
+						if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+							replySeq, _ = strconv.Atoi(replyID)
+						} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+							replySeq = int(replyID)
 						}
+						pMsg.Elements = append(pMsg.Elements, &message.ReplyElement{
+							ReplySeq: int32(replySeq),
+							Sender:   pMsg.Sender.Uin,
+							Time:     pMsg.Time,
+							Elements: pMsg.Elements,
+						})
 					case "record":
 						record, ok := contentMap["data"].(map[string]interface{})
 						if ok {
-							size, _ := strconv.Atoi(record["file_size"].(string))
+							fileSize := 0
+							filePath := ""
+							if size, ok := record["file_size"].(string); ok {
+								fileSize, _ = strconv.Atoi(size)
+							}
+							if path, ok := record["path"].(string); ok {
+								filePath = path
+							}
 							pMsg.Elements = append(pMsg.Elements, &message.VoiceElement{
 								Name: record["file"].(string),
-								Url:  record["path"].(string),
-								Size: int32(size),
+								Url:  filePath,
+								Size: int32(fileSize),
 							})
 						}
 					}
