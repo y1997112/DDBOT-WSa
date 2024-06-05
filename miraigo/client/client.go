@@ -820,7 +820,7 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 	for _, elem := range content {
 		if text, ok := elem.(*message.TextElement); ok {
 			if len(text.Content) > 75 {
-				tmpText += tmpText[:75] + "..."
+				tmpText += text.Content[:75] + "..."
 			} else {
 				tmpText += text.Content
 			}
