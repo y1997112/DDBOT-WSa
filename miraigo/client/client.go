@@ -181,24 +181,24 @@ type FriendData struct {
 
 // 群成员信息
 type MemberData struct {
-	GroupID         int64  `json:"group_id"`
-	UserID          int64  `json:"user_id"`
-	Nickname        string `json:"nickname"`
-	Card            string `json:"card"`
-	Sex             string `json:"sex"`
-	Age             int    `json:"age"`
-	Area            string `json:"area"`
-	Level           int16  `json:"level"`
-	QQLevel         int16  `json:"qq_level"`
-	JoinTime        int64  `json:"join_time"`
-	LastSentTime    int64  `json:"last_sent_time"`
-	TitleExpireTime int64  `json:"title_expire_time"`
-	Unfriendly      bool   `json:"unfriendly"`
-	CardChangeable  bool   `json:"card_changeable"`
-	IsRobot         bool   `json:"is_robot"`
-	ShutUpTimestamp int64  `json:"shut_up_timestamp"`
-	Role            string `json:"role"`
-	Title           string `json:"title"`
+	GroupID         int64       `json:"group_id"`
+	UserID          int64       `json:"user_id"`
+	Nickname        string      `json:"nickname"`
+	Card            string      `json:"card"`
+	Sex             string      `json:"sex"`
+	Age             int         `json:"age"`
+	Area            string      `json:"area"`
+	Level           interface{} `json:"level"`
+	QQLevel         int16       `json:"qq_level"`
+	JoinTime        int64       `json:"join_time"`
+	LastSentTime    int64       `json:"last_sent_time"`
+	TitleExpireTime int64       `json:"title_expire_time"`
+	Unfriendly      bool        `json:"unfriendly"`
+	CardChangeable  bool        `json:"card_changeable"`
+	IsRobot         bool        `json:"is_robot"`
+	ShutUpTimestamp int64       `json:"shut_up_timestamp"`
+	Role            string      `json:"role"`
+	Title           string      `json:"title"`
 }
 
 // 群成员请求返回
