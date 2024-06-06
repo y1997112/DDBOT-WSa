@@ -797,7 +797,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 					// 刷新Bot.Uin
 					c.Uin = int64(wsmsg.SelfID)
 				}
-				logger.Infof("收到元事件消息：%s", wsmsg.MetaEventType)
+				logger.Infof("收到 元事件 消息：%s", wsmsg.MetaEventType)
 			} else if wsmsg.PostType == "notice" {
 				// 通知事件
 				sync, flash := false, false
@@ -824,7 +824,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 						go c.SyncGroupMembers(wsmsg.GroupID, flash)
 					}
 				}
-				logger.Infof("收到通知事件消息：%s", wsmsg.NoticeType)
+				logger.Infof("收到 通知事件 消息：%s", wsmsg.NoticeType)
 			} else if wsmsg.PostType == "request" {
 				// 请求事件
 				if wsmsg.RequestType == "friend" {
@@ -833,7 +833,7 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 				if wsmsg.RequestType == "group" {
 					// 加群邀请
 				}
-				logger.Infof("收到请求事件消息：%s", wsmsg.RequestType)
+				logger.Infof("收到 请求事件 消息：%s", wsmsg.RequestType)
 			}
 		}
 	}
@@ -857,25 +857,29 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 				tmpText += text.Content
 			}
 		} else if _, ok := elem.(*message.AtElement); ok {
-			tmpText += "[At]"
+			tmpText += "[艾特]"
 		} else if _, ok := elem.(*message.FaceElement); ok {
-			tmpText += "[Face]"
+			tmpText += "[表情]"
 		} else if _, ok := elem.(*message.GroupImageElement); ok {
-			tmpText += "[Image]"
+			tmpText += "[图片]"
 		} else if _, ok := elem.(*message.FriendImageElement); ok {
-			tmpText += "[Image]"
+			tmpText += "[图片]"
 		} else if _, ok := elem.(*message.ReplyElement); ok {
-			tmpText += "[Reply]"
+			tmpText += "[引用]"
 		} else if _, ok := elem.(*message.VoiceElement); ok {
-			tmpText += "[Record]"
+			tmpText += "[语音]"
 		}
 	}
 	if !mode {
-		logger.Infof("收到群 %s(%d) 内 %s(%d) 的消息：%s (%d)", Msg.(*message.GroupMessage).GroupName, Msg.(*message.GroupMessage).GroupCode, Msg.(*message.GroupMessage).Sender.Nickname, Msg.(*message.GroupMessage).Sender.Uin, tmpText, Msg.(*message.GroupMessage).Id)
-		logger.Debugf("%+v", Msg.(*message.GroupMessage))
+		name := Msg.(*message.GroupMessage).Sender.CardName
+		if name == "" {
+			name = Msg.(*message.GroupMessage).Sender.Nickname
+		}
+		logger.Infof("收到群 %s(%d) 内 %s(%d) 的消息: %s (%d)", Msg.(*message.GroupMessage).GroupName, Msg.(*message.GroupMessage).GroupCode, name, Msg.(*message.GroupMessage).Sender.Uin, tmpText, Msg.(*message.GroupMessage).Id)
+		//logger.Debugf("%+v", Msg.(*message.GroupMessage))
 	} else {
-		logger.Infof("收到 %s(%d) 的私聊消息：%s (%d)", Msg.(*message.PrivateMessage).Sender.Nickname, Msg.(*message.PrivateMessage).Sender.Uin, tmpText, Msg.(*message.PrivateMessage).Id)
-		logger.Debugf("%+v", Msg.(*message.PrivateMessage))
+		logger.Infof("收到 %s(%d) 的私聊消息: %s (%d)", Msg.(*message.PrivateMessage).Sender.Nickname, Msg.(*message.PrivateMessage).Sender.Uin, tmpText, Msg.(*message.PrivateMessage).Id)
+		//logger.Debugf("%+v", Msg.(*message.PrivateMessage))
 	}
 }
 
@@ -984,7 +988,7 @@ func (c *QQClient) RefreshList() {
 		//logger.Info("enabled reload delay")
 		var Delay time.Duration
 		Delay = config.GlobalConfig.GetDuration("reloadDelay.time")
-		logger.Infof("delay time: %ss", strconv.FormatFloat(Delay.Seconds(), 'f', 0, 64))
+		logger.Infof("延迟加载时间: %ss", strconv.FormatFloat(Delay.Seconds(), 'f', 0, 64))
 		time.Sleep(Delay)
 	}
 	//logger.Info("start reload friends list")
@@ -992,19 +996,19 @@ func (c *QQClient) RefreshList() {
 	if err != nil {
 		logger.WithError(err).Error("unable to load friends list")
 	}
-	logger.Infof("load %d friends", len(c.FriendList))
+	logger.Infof("已加载 %d 个好友", len(c.FriendList))
 	//logger.Info("start reload groups list")
 	err = c.ReloadGroupList()
 	if err != nil {
 		logger.WithError(err).Error("unable to load groups list")
 	}
-	logger.Infof("load %d groups", len(c.GroupList))
+	logger.Infof("已加载 %d 个群组", len(c.GroupList))
 	//logger.Info("start reload group members list")
 	err = c.ReloadGroupMembers()
 	if err != nil {
 		logger.WithError(err).Error("unable to load group members list")
 	} else {
-		logger.Info("load members done.")
+		logger.Info("加载 群员信息 完成")
 	}
 }
 
