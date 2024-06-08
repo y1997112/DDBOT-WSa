@@ -606,6 +606,17 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 							faceID = int(face)
 						}
 						g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
+					case "mface":
+						if mface, ok := contentMap["data"].(map[string]interface{}); ok {
+							tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
+							g.Elements = append(g.Elements, &message.MarketFaceElement{
+								Name:       mface["summary"].(string),
+								FaceId:     []byte(mface["emoji_id"].(string)),
+								TabId:      int32(tabId),
+								MediaType:  2,
+								EncryptKey: []byte(mface["key"].(string)),
+							})
+						}
 					case "image":
 						image, ok := contentMap["data"].(map[string]interface{})
 						if ok {
@@ -736,6 +747,17 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 							faceID = int(face)
 						}
 						pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+					case "mface":
+						if mface, ok := contentMap["data"].(map[string]interface{}); ok {
+							tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
+							pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
+								Name:       mface["summary"].(string),
+								FaceId:     []byte(mface["emoji_id"].(string)),
+								TabId:      int32(tabId),
+								MediaType:  2,
+								EncryptKey: []byte(mface["key"].(string)),
+							})
+						}
 					case "image":
 						image, ok := contentMap["data"].(map[string]interface{})
 						if ok {
@@ -859,6 +881,8 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 		} else if _, ok := elem.(*message.AtElement); ok {
 			tmpText += "[艾特]"
 		} else if _, ok := elem.(*message.FaceElement); ok {
+			tmpText += "[表情]"
+		} else if _, ok := elem.(*message.MarketFaceElement); ok {
 			tmpText += "[表情]"
 		} else if _, ok := elem.(*message.GroupImageElement); ok {
 			tmpText += "[图片]"
