@@ -796,28 +796,31 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 		return &message.GroupMessage{Id: -1}
 	}
 	var newstring = msgstringer.MsgToString(msg.Elements)
-	res = bot.Instance.SendGroupMessage(groupCode, msg, newstring)
-	if res == nil || res.Id == -1 {
+	res, err := bot.Instance.SendGroupMessage(groupCode, msg, newstring)
+	if err != nil {
 		msgStr := msgstringer.MsgToString(msg.Elements)
 		if len(msgStr) > 150 {
 			msgStr = msgStr[:150] + "..."
 		}
-		if msg.Count(func(e message.IMessageElement) bool {
-			return e.Type() == message.At && e.(*message.AtElement).Target == 0
-		}) > 0 {
-			logger.WithField("content", msgStr).
-				WithFields(localutils.GroupLogFields(groupCode)).
-				Errorf("发送群消息失败，可能是@全员次数用尽")
-		} else {
-			logger.WithField("content", msgStr).
-				WithFields(localutils.GroupLogFields(groupCode)).
-				Errorf("发送群消息失败，可能是被禁言或者账号被风控")
-		}
+		logger.WithField("content", msgStr).
+			WithFields(localutils.GroupLogFields(groupCode)).
+			Error(err)
+		// if msg.Count(func(e message.IMessageElement) bool {
+		// 	return e.Type() == message.At && e.(*message.AtElement).Target == 0
+		// }) > 0 {
+		// 	logger.WithField("content", msgStr).
+		// 		WithFields(localutils.GroupLogFields(groupCode)).
+		// 		Errorf("发送群消息失败，可能是@全员次数用尽")
+		// } else {
+		// 	logger.WithField("content", msgStr).
+		// 		WithFields(localutils.GroupLogFields(groupCode)).
+		// 		Errorf("发送群消息失败，可能是被禁言或者账号被风控")
+		// }
 	}
-	// if res == nil {
-	// 	logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("failed to send message")
-	// 	res = &message.GroupMessage{Id: -1, Elements: msg.Elements}
-	// }
+	if res == nil {
+		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("failed to send message")
+		res = &message.GroupMessage{Id: -1, Elements: msg.Elements}
+	}
 	return res
 }
 

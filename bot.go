@@ -173,7 +173,7 @@ autoreply: # 自定义命令自动回复，自定义命令通过模板发送消�
 customCommandPrefix:
   签到: ""
   
-# 日志等级，可选值：debug / info / warn / error / fatal / panic
+# 日志等级，可选值：trace / debug / info / warn / error
 logLevel: info
 
 # ws-server 地址，默认监听全部请求，如需限制请修改为指定ip:端口
