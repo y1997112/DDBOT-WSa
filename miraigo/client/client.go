@@ -212,8 +212,8 @@ type ResponseGroupMemberData struct {
 
 // 新增
 type BasicMessage struct {
-	Echo string          `json:"echo"`
-	Data json.RawMessage `json:"data"`
+	Echo string `json:"echo"`
+	// Data json.RawMessage `json:"data"`
 }
 
 // 发送消息返回
@@ -572,100 +572,107 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		}
 		// 打印收到的消息
 		//log.Println(string(p))
-		go logger.Debugf("Received message: %s", string(p))
-		//初步解析
-		var basicMsg BasicMessage
-		err = json.Unmarshal(p, &basicMsg)
-		if err != nil {
-			//log.Println("Failed to parse basic message:", err)
-			logger.Errorf("Failed to parse basic message: %v", err)
-			continue
+		go logger.Tracef("Received message: %s", string(p))
+		go c.handleResponse(p)
+	}
+}
+
+func (c *QQClient) handleResponse(p []byte) {
+	//初步解析
+	var basicMsg BasicMessage
+	err := json.Unmarshal(p, &basicMsg)
+	if err != nil {
+		//log.Println("Failed to parse basic message:", err)
+		logger.Errorf("Failed to parse basic message: %v", err)
+		return
+	}
+	if basicMsg.Echo != "" {
+		action, _ := parseEcho(basicMsg.Echo)
+		logger.Debugf("Received action: %s", action)
+		//根据echo判断
+		switch action {
+		case "get_group_list":
+			respCh, isResponse := c.responseChans[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for group list: %s", basicMsg.Echo)
+				return
+			}
+			var groupData ResponseGroupData
+			if err := json.Unmarshal(p, &groupData); err != nil {
+				//log.Println("Failed to unmarshal group data:", err)
+				logger.Errorf("Failed to unmarshal group data: %v", err)
+				return
+			}
+			respCh <- &groupData
+		case "get_group_member_list":
+			respCh, isResponse := c.responseMembers[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for group member list: %s", basicMsg.Echo)
+				return
+			}
+			var memberData ResponseGroupMemberData
+			if err := json.Unmarshal(p, &memberData); err != nil {
+				//log.Println("Failed to unmarshal group member data:", err)
+				logger.Errorf("Failed to unmarshal group member data: %v", err)
+				return
+			}
+			respCh <- &memberData
+		case "get_friend_list":
+			respCh, isResponse := c.responseFriends[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for friend list: %s", basicMsg.Echo)
+				return
+			}
+			var friendData ResponseFriendList
+			if err := json.Unmarshal(p, &friendData); err != nil {
+				//log.Println("Failed to unmarshal friend data:", err)
+				logger.Errorf("Failed to unmarshal friend data: %v", err)
+				return
+			}
+			respCh <- &friendData
+		case "send_group_msg":
+			respCh, isResponse := c.responseMessage[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for message: %s", basicMsg.Echo)
+				return
+			}
+			var SendResp ResponseSendMessage
+			if err := json.Unmarshal(p, &SendResp); err != nil {
+				//log.Println("Failed to unmarshal send message response:", err)
+				logger.Errorf("Failed to unmarshal send message response: %v", err)
+				return
+			}
+			respCh <- &SendResp
+		case "set_group_leave":
+			respCh, isResponse := c.responseSetLeave[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for set group leave: %s", basicMsg.Echo)
+				return
+			}
+			var SendResp ResponseSetGroupLeave
+			if err = json.Unmarshal(p, &SendResp); err != nil {
+				logger.Errorf("Failed to unmarshal set group leave response: %v", err)
+				return
+			}
+			respCh <- &SendResp
+		default:
+			logger.Warnf("Unknown action: %s", action)
 		}
-		if basicMsg.Echo != "" {
-			go c.handleResponse(basicMsg, p)
-		}
+		//其他类型
+		// delete(c.responseChans, basicMsg.Echo)
+	} else {
 		// 解析消息
 		var wsmsg WebSocketMessage
 		err = json.Unmarshal(p, &wsmsg)
 		if err != nil {
 			//log.Println("Failed to parse message:", err)
 			logger.Errorf("Failed to parse message: %v", err)
-			continue
+			return
 		}
 		// 存储 echo
-		c.currentEcho = wsmsg.Echo
-		go c.handleMessage(wsmsg)
+		// c.currentEcho = wsmsg.Echo
+		c.handleMessage(wsmsg)
 	}
-}
-
-func (c *QQClient) handleResponse(basicMsg BasicMessage, p []byte) {
-	var err error
-	action, _ := parseEcho(basicMsg.Echo)
-	logger.Debugf("Received action: %s", action)
-	//根据echo判断
-	switch action {
-	case "get_group_list":
-		respCh, isResponse := c.responseChans[basicMsg.Echo]
-		if !isResponse {
-			return
-		}
-		var groupData ResponseGroupData
-		if err := json.Unmarshal(basicMsg.Data, &groupData.Data); err != nil {
-			//log.Println("Failed to unmarshal group data:", err)
-			logger.Errorf("Failed to unmarshal group data: %v", err)
-			return
-		}
-		respCh <- &groupData
-	case "get_group_member_list":
-		respCh, isResponse := c.responseMembers[basicMsg.Echo]
-		if !isResponse {
-			return
-		}
-		var memberData ResponseGroupMemberData
-		if err := json.Unmarshal(basicMsg.Data, &memberData.Data); err != nil {
-			//log.Println("Failed to unmarshal group member data:", err)
-			logger.Errorf("Failed to unmarshal group member data: %v", err)
-			return
-		}
-		respCh <- &memberData
-	case "get_friend_list":
-		respCh, isResponse := c.responseFriends[basicMsg.Echo]
-		if !isResponse {
-			return
-		}
-		var friendData ResponseFriendList
-		if err := json.Unmarshal(basicMsg.Data, &friendData.Data); err != nil {
-			//log.Println("Failed to unmarshal friend data:", err)
-			logger.Errorf("Failed to unmarshal friend data: %v", err)
-			return
-		}
-		respCh <- &friendData
-	case "send_group_msg":
-		respCh, isResponse := c.responseMessage[basicMsg.Echo]
-		if !isResponse {
-			return
-		}
-		var SendResp ResponseSendMessage
-		if err := json.Unmarshal(basicMsg.Data, &SendResp.Data); err != nil {
-			//log.Println("Failed to unmarshal send message response:", err)
-			logger.Errorf("Failed to unmarshal send message response: %v", err)
-			return
-		}
-		respCh <- &SendResp
-	case "set_group_leave":
-		respCh, isResponse := c.responseSetLeave[basicMsg.Echo]
-		if !isResponse {
-			return
-		}
-		var SendResp ResponseSetGroupLeave
-		if err = json.Unmarshal(p, &SendResp); err != nil {
-			logger.Errorf("Failed to unmarshal set group leave response: %v", err)
-			return
-		}
-		respCh <- &SendResp
-	}
-	//其他类型
-	// delete(c.responseChans, basicMsg.Echo)
 }
 
 func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
@@ -961,7 +968,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				// 刷新Bot.Uin
 				c.Uin = int64(wsmsg.SelfID)
 			}
-			logger.Infof("收到 元事件 消息：%s", wsmsg.MetaEventType)
+			logger.Debugf("收到 元事件 消息：%s", wsmsg.MetaEventType)
 		} else if wsmsg.PostType == "notice" {
 			// 通知事件
 			sync, refresh := false, false
@@ -1173,6 +1180,13 @@ func (c *QQClient) StartWebSocketServer() {
 		// 打印新的 WebSocket 连接日志
 		logger.Info("有新的ws连接了!!")
 		//log.Println("有新的ws连接了!!")
+
+		//初始化变量
+		c.responseChans = make(map[string]chan *ResponseGroupData)
+		c.responseFriends = make(map[string]chan *ResponseFriendList)
+		c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
+		c.responseMessage = make(map[string]chan *ResponseSendMessage)
+		c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
 
 		// 打印客户端的 headers
 		for name, values := range r.Header {
@@ -1454,8 +1468,6 @@ func (c *QQClient) RequestSMS() bool {
 }
 
 func (c *QQClient) init(tokenLogin bool) error {
-	//新增
-	c.responseChans = make(map[string]chan *ResponseGroupData)
 	if len(c.sig.G) == 0 {
 		c.warning("device lock is disabled. HTTP API may fail.")
 	}
@@ -1565,7 +1577,7 @@ func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
 	// 创建响应通道并添加到映射中
 	respChan := make(chan *ResponseFriendList)
 	// 初始化 c.responseChans 映射
-	c.responseFriends = make(map[string]chan *ResponseFriendList)
+	//c.responseFriends = make(map[string]chan *ResponseFriendList)
 	c.responseFriends[echo] = respChan
 
 	// 发送请求
@@ -1575,6 +1587,7 @@ func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
 	// 等待响应或超时
 	select {
 	case resp := <-respChan:
+		delete(c.responseFriends, echo)
 		friends := make([]*FriendInfo, len(resp.Data))
 		c.debug("GetFriendList: %v", resp.Data)
 		for i, friend := range resp.Data {
@@ -1587,7 +1600,8 @@ func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
 		}
 		return &FriendListResponse{TotalCount: int32(len(friends)), List: friends}, nil
 
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
+		delete(c.responseFriends, echo)
 		return nil, errors.New("GetFriendList: timeout waiting for response.")
 	}
 }
@@ -1657,7 +1671,7 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 	// 创建响应通道并添加到映射中
 	respChan := make(chan *ResponseGroupData)
 	// 初始化 c.responseChans 映射
-	c.responseChans = make(map[string]chan *ResponseGroupData)
+	// c.responseChans = make(map[string]chan *ResponseGroupData)
 	c.responseChans[echo] = respChan
 
 	// 发送请求
@@ -1673,6 +1687,7 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 		//}
 
 		// 将ResponseGroupData转换为GroupInfo列表
+		delete(c.responseChans, echo)
 		groups := make([]*GroupInfo, len(resp.Data))
 		c.debug("GetGroupList: %v", resp.Data)
 		for i, groupData := range resp.Data {
@@ -1690,7 +1705,8 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 
 		return groups, nil
 
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
+		delete(c.responseChans, echo)
 		return nil, errors.New("GetGroupList: timeout waiting for response.")
 	}
 
@@ -1793,7 +1809,7 @@ func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInte
 	// 创建响应通道并添加到映射中
 	respChan := make(chan *ResponseGroupMemberData)
 	// 初始化 c.responseChans 映射
-	c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
+	// c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
 	c.responseMembers[echo] = respChan
 
 	// 发送请求
@@ -1803,12 +1819,7 @@ func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInte
 	// 等待响应或超时
 	select {
 	case resp := <-respChan:
-		// 根据resp的结构处理数据
-		//if resp.Retcode != 0 || resp.Status != "ok" {
-		//	return nil, fmt.Errorf("error response from server: %s", resp.Message)
-		//}
-
-		// 将ResponseGroupMemberData转换为GroupMemberInfo列表
+		delete(c.responseMembers, echo)
 		members := make([]*GroupMemberInfo, len(resp.Data))
 		c.debug("GetGroupMembers: %v", resp.Data)
 		for i, memberData := range resp.Data {
@@ -1835,7 +1846,8 @@ func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInte
 
 		return members, nil
 
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
+		delete(c.responseMembers, echo)
 		return nil, errors.New("GetGroupMembers: timeout waiting for response.")
 	}
 
@@ -2018,7 +2030,7 @@ func (c *QQClient) quitGroup(group *GroupInfo) {
 	// 创建响应通道并添加到映射中
 	respChan := make(chan *ResponseSetGroupLeave)
 	// 初始化 c.responseChans 映射
-	c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
+	//c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
 	c.responseSetLeave[echo] = respChan
 	// 发送请求
 	data, _ := json.Marshal(req)
@@ -2026,6 +2038,7 @@ func (c *QQClient) quitGroup(group *GroupInfo) {
 	// 等待响应或超时
 	select {
 	case resp := <-respChan:
+		delete(c.responseSetLeave, echo)
 		if resp.Retcode == 0 {
 			sort.Slice(c.GroupList, func(i, j int) bool {
 				return c.GroupList[i].Code < c.GroupList[j].Code
@@ -2040,7 +2053,8 @@ func (c *QQClient) quitGroup(group *GroupInfo) {
 		} else {
 			logger.Errorf("退出群组失败: %v", resp.Message)
 		}
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
+		delete(c.responseSetLeave, echo)
 		logger.Errorf("退出群组超时")
 	}
 }

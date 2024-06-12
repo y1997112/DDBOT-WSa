@@ -64,6 +64,7 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	}
 	//判定消息长度限制
 	msgLen := message.EstimateLength(m.Elements)
+	imgLen := 0
 	if len(m.Elements) > 0 {
 		for _, e := range m.Elements {
 			//判断消息是否为图片
@@ -72,17 +73,16 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 				picCount := re.FindAllStringIndex(text.Content, -1)
 				imgCount += len(picCount)
 				if imgCount > 0 {
-					imgLen := 0
+					tmpLen := 0
 					for _, pic := range picCount {
-						imgLen += pic[1] - pic[0]
+						tmpLen += pic[1] - pic[0]
 					}
-					logger.Infof("本次发送含图片，总长: %d, 文本：%d, 图片: %d，长度：%d", msgLen, len(text.Content)-imgLen, imgCount, imgLen)
-					msgLen -= imgLen
-				} else {
-					logger.Infof("本次发送仅文本，总长: %d", msgLen)
+					imgLen += tmpLen
+					msgLen -= tmpLen
 				}
 			}
 		}
+		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 长度：%d", msgLen+imgLen, msgLen, imgCount, imgLen)
 	}
 	//判断是否超过最大发送长度
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
@@ -98,26 +98,25 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 		},
 		Echo: echo,
 	}
-
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseSendMessage)
-	// 初始化 c.responseChans 映射
-	c.responseMessage = make(map[string]chan *ResponseSendMessage)
-	c.responseMessage[echo] = respChan
-
 	data, err := json.Marshal(msg)
 	if err != nil {
 		//fmt.Printf("Failed to marshal message to JSON: %v", err)
 		//logger.Errorf("Failed to marshal message to JSON: %v", err)
 		return nil, errors.New(fmt.Sprintf("Failed to marshal message to JSON: %v", err))
 	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseSendMessage)
+	// 初始化 c.responseChans 映射
+	// c.responseMessage = make(map[string]chan *ResponseSendMessage)
+	c.responseMessage[echo] = respChan
 	//fmt.Printf("发群信息action给ws客户端: %v", msg)
-	logger.Debugf("投递 群消息 给WS客户端: %v", msg)
+	logger.Infof("发送 群消息 Echo: %s", msg.Echo)
 	c.sendToWebSocketClient(c.ws, data)
 
 	// 等待响应或超时
 	select {
 	case resp := <-respChan:
+		delete(c.responseMessage, echo)
 		if resp.Retcode == 0 {
 			retMsg := &message.GroupMessage{
 				Id:         resp.Data.MessageID,
@@ -134,11 +133,11 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 			}
 			return retMsg, nil
 		} else {
-			//logger.Errorf("Failed to send group message: %v", resp.Message)
 			return nil, errors.New(fmt.Sprintf("Failed to send group message: %v", resp.Message))
 		}
 		//return c.sendGroupMessage(groupCode, false, m, msgID)
-	case <-time.After(10 * time.Second):
+	case <-time.After(30 * time.Second):
+		delete(c.responseMessage, echo)
 		return nil, errors.New("Send group message timeout")
 	}
 }
