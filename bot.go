@@ -158,7 +158,7 @@ bilibili:
 concern:
   emitInterval: 5s
 
-  template:       # 是否启用模板功能，true为启用，false为禁用，默认为禁用
+template:      # 是否启用模板功能，true为启用，false为禁用，默认为禁用
   enable: true # 需要了解模板请看模板文档
   
 autoreply: # 自定义命令自动回复，自定义命令通过模板发送消息，且不支持任何参数，需要同时启用模板功能
