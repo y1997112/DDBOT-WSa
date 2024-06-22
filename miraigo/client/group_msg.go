@@ -148,7 +148,7 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 				Id:         resp.Data.MessageID,
 				InternalId: int32(rand.Uint32()),
 				GroupCode:  groupCode,
-				GroupName:  c.FindGroupByUin(groupCode).Name,
+				GroupName:  "",
 				Sender: &message.Sender{
 					Uin:      c.Uin,
 					Nickname: c.Nickname,
@@ -156,6 +156,9 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 				},
 				Time:     int32(time.Now().Unix()),
 				Elements: m.Elements,
+			}
+			if c.GroupList != nil {
+				retMsg.GroupName = c.FindGroupByUin(groupCode).Name
 			}
 			return retMsg, nil
 		} else {
