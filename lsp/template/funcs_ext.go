@@ -507,3 +507,41 @@ func abort(e ...interface{}) interface{} {
 func fin() interface{} {
 	panic(errFin)
 }
+
+func getUnixTime(i int64, f string) string {
+	t := time.Unix(i, 0)
+	return getTime(t, f)
+}
+
+func getTimeStamp(t string) int64 {
+	loc, _ := time.LoadLocation("Local")
+	fTime, _ := time.ParseInLocation(time.DateTime, t, loc)
+	ret := fTime.Unix()
+	return ret
+}
+
+func getTime(s interface{}, f string) string {
+	var t time.Time
+	if _, ok := s.(time.Time); ok {
+		t = s.(time.Time)
+	} else if _, ok := s.(string); ok {
+		if s.(string) == "now" {
+			t = time.Now()
+		} else {
+			tmp, err := time.Parse(time.DateTime, s.(string))
+			if err != nil {
+				return "parse time error"
+			}
+			t = tmp
+		}
+	}
+	if f == "dateonly" {
+		return t.Format(time.DateOnly)
+	} else if f == "timeonly" {
+		return t.Format(time.TimeOnly)
+	} else if f == "stamp" {
+		return t.Format(time.Stamp)
+	} else {
+		return t.Format(time.DateTime)
+	}
+}

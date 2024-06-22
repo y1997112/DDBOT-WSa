@@ -45,7 +45,26 @@ type WebSocketParams struct {
 	Message string `json:"message"`
 }
 
-func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, newstr string) (*message.GroupMessage, error) {
+func (c *QQClient) SendLimit() (*message.GroupMessage, error) {
+	for {
+		select {
+		case sendMsg := <-sendMessageQueue:
+		pass:
+			if c.limiterMessageSend.Grant() {
+				logger.Debug("流控：允许通过")
+				var sendResp SendResp
+				sendResp.RetMSG, sendResp.Error = c.RealSendMSG(sendMsg.GroupCode, sendMsg.Message, sendMsg.NewStr)
+				sendMsg.ResultChan <- sendResp
+			} else {
+				logger.Debug("流控：拒绝通过")
+				time.Sleep(time.Second * 1)
+				goto pass
+			}
+		}
+	}
+}
+
+func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newstr string) (*message.GroupMessage, error) {
 	// 检查groupCode是否是由字符串经MD5得到的
 	originalGroupID, exists := originalStringFromInt64(groupCode)
 
@@ -65,6 +84,7 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	//判定消息长度限制
 	msgLen := message.EstimateLength(m.Elements)
 	imgLen := 0
+	totalLen := 0
 	if len(m.Elements) > 0 {
 		for _, e := range m.Elements {
 			//判断消息是否为图片
@@ -82,7 +102,8 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 				}
 			}
 		}
-		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 长度：%d", msgLen+imgLen, msgLen, imgCount, imgLen)
+		totalLen = msgLen + imgLen
+		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 长度：%d", totalLen, msgLen, imgCount, imgLen)
 	}
 	//判断是否超过最大发送长度
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
@@ -110,7 +131,12 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 	// c.responseMessage = make(map[string]chan *ResponseSendMessage)
 	c.responseMessage[echo] = respChan
 	//fmt.Printf("发群信息action给ws客户端: %v", msg)
-	logger.Infof("发送 群消息 Echo: %s", msg.Echo)
+	expTime := math.Ceil(float64(totalLen) / 131072)
+	if totalLen < 1024 && imgCount > 0 {
+		expTime = 90
+	}
+	expTime += 6
+	logger.Infof("发送 群消息 预期耗时 %.0fs Echo: %s", expTime, msg.Echo)
 	c.sendToWebSocketClient(c.ws, data)
 
 	// 等待响应或超时
@@ -136,7 +162,7 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 			return nil, errors.New(fmt.Sprintf("Failed to send group message: %v", resp.Message))
 		}
 		//return c.sendGroupMessage(groupCode, false, m, msgID)
-	case <-time.After(30 * time.Second):
+	case <-time.After(time.Duration(expTime) * time.Second):
 		delete(c.responseMessage, echo)
 		return nil, errors.New("Send group message timeout")
 	}

@@ -796,7 +796,9 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 		return &message.GroupMessage{Id: -1}
 	}
 	var newstring = msgstringer.MsgToString(msg.Elements)
-	res, err := bot.Instance.SendGroupMessage(groupCode, msg, newstring)
+	ret := bot.Instance.SendGroupMessage(groupCode, msg, newstring)
+	res = ret.RetMSG
+	err := ret.Error
 	if err != nil {
 		msgStr := msgstringer.MsgToString(msg.Elements)
 		if len(msgStr) > 150 {

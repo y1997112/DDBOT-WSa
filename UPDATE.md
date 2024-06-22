@@ -1,4 +1,19 @@
 ## DDBOT最近更新日志
+- 2024-06-22 v0.1.2(WSa)
+  - 取消获取好友/群组/群员信息的流控
+  - 发送流控限制为10条消息/秒（群聊）
+    - 其实无法触及，无需在意（调试用）
+  - 更改图片的发送方式，增加重试：
+    - 如果获取到了图片二进制，那就base64编码
+    - 如果获取失败了，那就投递url给前端处理
+  - 修改空图片的处理方式为丢弃
+  - 修改发送反馈等待时间为动态计算
+  - 为消息处理添加消息队列（发送、接收）
+  - 为模板增加了如下时间函数：
+    - 取时间：getTime( "now" | "2024-06-22 15:15:47" | time string, "datetime" | "dateonly" | "timeonly" | "stamp" | format string) string
+    - 取时间戳：getTimeStamp( "2024-06-22 15:15:47" | time sring) int64
+    - 时间戳转时间：getUnixTime( 1719040547 | Stamp int64, "datetime" | "dateonly" | "timeonly" | "stamp" | format string ) string
+
 - 2024-06-13 v0.1.1(WSa)
   - 继续优化ws消息处理函数
   - 增加、优化部分日志点（和分级）

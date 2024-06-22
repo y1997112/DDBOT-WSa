@@ -132,13 +132,14 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws               *websocket.Conn
-	responseChans    map[string]chan *ResponseGroupData
-	responseMembers  map[string]chan *ResponseGroupMemberData
-	responseFriends  map[string]chan *ResponseFriendList
-	responseMessage  map[string]chan *ResponseSendMessage
-	responseSetLeave map[string]chan *ResponseSetGroupLeave
-	currentEcho      string
+	ws                 *websocket.Conn
+	responseChans      map[string]chan *ResponseGroupData
+	responseMembers    map[string]chan *ResponseGroupMemberData
+	responseFriends    map[string]chan *ResponseFriendList
+	responseMessage    map[string]chan *ResponseSendMessage
+	responseSetLeave   map[string]chan *ResponseSetGroupLeave
+	currentEcho        string
+	limiterMessageSend *RateLimiter
 }
 
 // 新增
@@ -234,6 +235,11 @@ type ResponseSetGroupLeave struct {
 	Message string `json:"message"`
 	Wording string `json:"wording"`
 	Echo    string `json:"echo"`
+}
+
+type SendResp struct {
+	RetMSG *message.GroupMessage
+	Error  error
 }
 
 // Window represents a fixed-window
@@ -423,6 +429,15 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type SendMsg struct {
+	GroupCode  int64
+	Message    *message.SendingMessage
+	NewStr     string
+	ResultChan chan SendResp
+}
+
+var sendMessageQueue = make(chan SendMsg, 128)
+var messageQueue = make(chan []byte, 128)
 var md5Int64Mapping = make(map[int64]string)
 var md5Int64MappingLock sync.Mutex
 
@@ -561,7 +576,6 @@ func parseEcho(echo string) (string, string) {
 
 func (c *QQClient) handleConnection(ws *websocket.Conn) {
 	//为结构体字段赋值 以便在其他地方访问
-	c.ws = ws
 	defer ws.Close()
 	for {
 		_, p, err := ws.ReadMessage()
@@ -572,12 +586,21 @@ func (c *QQClient) handleConnection(ws *websocket.Conn) {
 		}
 		// 打印收到的消息
 		//log.Println(string(p))
-		go logger.Tracef("Received message: %s", string(p))
-		go c.handleResponse(p)
+		messageQueue <- p
+	}
+}
+
+func (c *QQClient) processMessage() {
+	for {
+		select {
+		case p := <-messageQueue:
+			go c.handleResponse(p)
+		}
 	}
 }
 
 func (c *QQClient) handleResponse(p []byte) {
+	go logger.Tracef("Received message: %s", string(p))
 	//初步解析
 	var basicMsg BasicMessage
 	err := json.Unmarshal(p, &basicMsg)
@@ -992,7 +1015,8 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					// 			Uin: wsmsg.UserID.ToInt64(),
 					// 		},
 					// 	})
-					c.SyncTickerControl(2, WebSocketMessage{}, false)
+					c.ReloadFriendList()
+					// c.SyncTickerControl(2, WebSocketMessage{}, false)
 				}
 			} else if wsmsg.SubType == "poke" {
 				// 戳一戳事件（返回示例）
@@ -1023,8 +1047,9 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 			if sync {
 				if c.GroupList != nil {
 					// 调试：暂时强制刷新（refresh=true）
-					// refresh = true
-					c.SyncTickerControl(1, wsmsg, refresh)
+					//refresh = true
+					c.SyncGroupMembers(wsmsg.GroupID, refresh)
+					// c.SyncTickerControl(1, wsmsg, refresh)
 				}
 			}
 			logger.Infof("收到 通知事件 消息：%s", wsmsg.NoticeType)
@@ -1041,22 +1066,21 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 	}
 }
 
-func (c *QQClient) SyncTickerControl(m int, wsmsg WebSocketMessage, flash bool) {
-	// allow 10 requests per second
-	rateLimiter := NewRateLimiter(time.Minute, 1, func() Window {
-		return NewLocalWindow()
-	})
-	if rateLimiter.Grant() {
-		logger.Infof("流控：允许通过")
-		if m == 1 {
-			c.SyncGroupMembers(wsmsg.GroupID, flash)
-		} else if m == 2 {
-			c.ReloadFriendList()
-		}
-	} else {
-		fmt.Println("流控：拒绝通过")
-	}
-}
+// func (c *QQClient) SyncTickerControl(m int, wsmsg WebSocketMessage, flash bool) {
+// allow:
+// 	if c.limiterMessageSend.Grant() {
+// 		logger.Debugf("流控：允许通过")
+// 		if m == 1 {
+// 			c.SyncGroupMembers(wsmsg.GroupID, flash)
+// 		} else if m == 2 {
+// 			c.ReloadFriendList()
+// 		}
+// 	} else {
+// 		logger.Debugf("流控：拒绝通过")
+// 		time.Sleep(time.Second * 1)
+// 		goto allow
+// 	}
+// }
 
 func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 	mode := false
@@ -1179,7 +1203,11 @@ func (c *QQClient) StartWebSocketServer() {
 
 		// 打印新的 WebSocket 连接日志
 		logger.Info("有新的ws连接了!!")
-		//log.Println("有新的ws连接了!!")
+		c.ws = ws
+		// allow 10 requests per second
+		c.limiterMessageSend = NewRateLimiter(time.Second, 5, func() Window {
+			return NewLocalWindow()
+		})
 
 		//初始化变量
 		c.responseChans = make(map[string]chan *ResponseGroupData)
@@ -1196,7 +1224,10 @@ func (c *QQClient) StartWebSocketServer() {
 			}
 		}
 		go c.RefreshList()
+		go c.SendLimit()
+		go c.processMessage()
 		c.handleConnection(ws)
+
 	})
 
 	wsAddr := config.GlobalConfig.GetString("ws-server")
@@ -1250,6 +1281,18 @@ func (c *QQClient) ReloadGroupMembers() error {
 		}
 	}
 	return nil
+}
+
+func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, newstr string) SendResp {
+	resultChan := make(chan SendResp)
+	sendMsg := SendMsg{
+		GroupCode:  groupCode,
+		Message:    m,
+		NewStr:     newstr,
+		ResultChan: resultChan,
+	}
+	sendMessageQueue <- sendMsg
+	return <-resultChan
 }
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
@@ -1600,7 +1643,7 @@ func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
 		}
 		return &FriendListResponse{TotalCount: int32(len(friends)), List: friends}, nil
 
-	case <-time.After(30 * time.Second):
+	case <-time.After(10 * time.Second):
 		delete(c.responseFriends, echo)
 		return nil, errors.New("GetFriendList: timeout waiting for response.")
 	}
@@ -1705,7 +1748,7 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 
 		return groups, nil
 
-	case <-time.After(30 * time.Second):
+	case <-time.After(10 * time.Second):
 		delete(c.responseChans, echo)
 		return nil, errors.New("GetGroupList: timeout waiting for response.")
 	}
@@ -1846,7 +1889,7 @@ func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInte
 
 		return members, nil
 
-	case <-time.After(30 * time.Second):
+	case <-time.After(10 * time.Second):
 		delete(c.responseMembers, echo)
 		return nil, errors.New("GetGroupMembers: timeout waiting for response.")
 	}
@@ -2053,7 +2096,7 @@ func (c *QQClient) quitGroup(group *GroupInfo) {
 		} else {
 			logger.Errorf("退出群组失败: %v", resp.Message)
 		}
-	case <-time.After(30 * time.Second):
+	case <-time.After(10 * time.Second):
 		delete(c.responseSetLeave, echo)
 		logger.Errorf("退出群组超时")
 	}
