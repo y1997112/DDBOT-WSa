@@ -331,6 +331,18 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 			request.Reject()
 			return
 		}
+		req, err := l.LspStateManager.ListNewFriendRequest()
+		if err != nil {
+			log.Errorf("ListNewFriendRequest error %v", err)
+			return
+		}
+		for _, r := range req {
+			if r.RequesterUin == request.RequesterUin {
+				l.LspStateManager.DeleteNewFriendRequest(request.RequestId)
+				log.Info("收到好友申请，该用户已在申请列表中，将忽略该申请")
+				return
+			}
+		}
 		switch l.LspStateManager.GetCurrentMode() {
 		case PrivateMode:
 			log.Info("收到好友申请，当前BOT处于私有模式，将拒绝好友申请")

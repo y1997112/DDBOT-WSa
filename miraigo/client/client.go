@@ -132,14 +132,15 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws                 *websocket.Conn
-	responseChans      map[string]chan *ResponseGroupData
-	responseMembers    map[string]chan *ResponseGroupMemberData
-	responseFriends    map[string]chan *ResponseFriendList
-	responseMessage    map[string]chan *ResponseSendMessage
-	responseSetLeave   map[string]chan *ResponseSetGroupLeave
-	currentEcho        string
-	limiterMessageSend *RateLimiter
+	ws                   *websocket.Conn
+	responseChans        map[string]chan *ResponseGroupData
+	responseMembers      map[string]chan *ResponseGroupMemberData
+	responseFriends      map[string]chan *ResponseFriendList
+	responseMessage      map[string]chan *ResponseSendMessage
+	responseSetLeave     map[string]chan *ResponseSetGroupLeave
+	responseStrangerInfo map[string]chan *ResponseGetStrangerInfo
+	currentEcho          string
+	limiterMessageSend   *RateLimiter
 }
 
 // 新增
@@ -237,9 +238,41 @@ type ResponseSetGroupLeave struct {
 	Echo    string `json:"echo"`
 }
 
+// 发送消息返回
 type SendResp struct {
 	RetMSG *message.GroupMessage
 	Error  error
+}
+
+// 查陌生人返回
+type ResponseGetStrangerInfo struct {
+	Status  string `json:"status"`
+	Retcode int    `json:"retcode"`
+	Data    struct {
+		Result int    `json:"result"`
+		ErrMsg string `json:"errMsg"`
+		Info   struct {
+			Uin       string `json:"uin"`
+			Nick      string `json:"nick"`
+			LongNick  string `json:"longNick"`
+			Sex       int    `json:"sex"`
+			ShengXiao int    `json:"shengXiao"`
+			RegTime   int64  `json:"regTime"`
+			QQLevel   struct {
+				CrownNum int `json:"crownNum"`
+				SunNum   int `json:"sunNum"`
+				MoonNum  int `json:"moonNum"`
+				StarNum  int `json:"starNum"`
+			} `json:"qqLevel"`
+		} `json:"info"`
+		UserID   int64  `json:"user_id"`
+		NickName string `json:"nickname"`
+		Age      int    `json:"age"`
+		Level    int    `json:"level"`
+	} `json:"data"`
+	Message string `json:"message"`
+	Wording string `json:"wording"`
+	Echo    string `json:"echo"`
 }
 
 // Window represents a fixed-window
@@ -678,6 +711,20 @@ func (c *QQClient) handleResponse(p []byte) {
 				return
 			}
 			respCh <- &SendResp
+		case "get_stranger_info":
+			respCh, isResponse := c.responseStrangerInfo[basicMsg.Echo]
+			if !isResponse {
+				logger.Warnf("No response channel for get stranger info: %s", basicMsg.Echo)
+				return
+			}
+			var SendResp ResponseGetStrangerInfo
+			if err = json.Unmarshal(p, &SendResp); err != nil {
+				logger.Errorf("Failed to unmarshal get stranger info response: %v", err)
+				return
+			}
+			respCh <- &SendResp
+		case "set_friend_add_request":
+			logger.Debug("Received set friend add request")
 		default:
 			logger.Warnf("Unknown action: %s", action)
 		}
@@ -1007,17 +1054,8 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					refresh = false
 				}
 			} else if wsmsg.NoticeType == "friend_add" {
-				// 如果是好友事件，则更新好友信息
-				if c.FriendList != nil {
-					// c.NewFriendEvent.dispatch(c,
-					// 	&NewFriendEvent{
-					// 		Friend: &FriendInfo{
-					// 			Uin: wsmsg.UserID.ToInt64(),
-					// 		},
-					// 	})
-					c.ReloadFriendList()
-					// c.SyncTickerControl(2, WebSocketMessage{}, false)
-				}
+				c.ReloadFriendList()
+				// c.SyncTickerControl(2, WebSocketMessage{}, false)
 			} else if wsmsg.SubType == "poke" {
 				// 戳一戳事件（返回示例）
 				// {
@@ -1056,7 +1094,22 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 		} else if wsmsg.PostType == "request" {
 			// 请求事件
 			if wsmsg.RequestType == "friend" {
-				// 加好友邀请
+				friendRequest := NewFriendRequest{
+					RequestId:     time.Now().UnixNano() / 1e6,
+					Message:       wsmsg.Comment,
+					RequesterUin:  wsmsg.UserID.ToInt64(),
+					RequesterNick: "陌生人",
+					Flag:          wsmsg.Flag,
+					client:        c,
+				}
+				info, err := c.GetStrangerInfo(friendRequest.RequesterUin)
+				if err == nil {
+					friendRequest.RequesterNick = info.Data.NickName
+				} else {
+					logger.Errorf("Failed to get stranger info: %v", err)
+				}
+				// 好友申请
+				c.NewFriendRequestEvent.dispatch(c, &friendRequest)
 			}
 			if wsmsg.RequestType == "group" {
 				// 加群邀请
@@ -1215,6 +1268,7 @@ func (c *QQClient) StartWebSocketServer() {
 		c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
 		c.responseMessage = make(map[string]chan *ResponseSendMessage)
 		c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
+		c.responseStrangerInfo = make(map[string]chan *ResponseGetStrangerInfo)
 
 		// 打印客户端的 headers
 		for name, values := range r.Header {
@@ -1996,10 +2050,26 @@ func (c *QQClient) SolveGroupJoinRequest(i any, accept, block bool, reason strin
 	}
 }
 
-func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {
-	_, pkt := c.buildSystemMsgFriendActionPacket(req.RequestId, req.RequesterUin, accept)
-	_ = c.sendPacket(pkt)
+func (c *QQClient) SolveFriendRequest(newReq *NewFriendRequest, accept bool) {
+	echo := generateEcho("set_friend_add_request")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "set_friend_add_request",
+		"params": map[string]interface{}{
+			"flag":    newReq.Flag,
+			"approve": accept,
+		},
+		"echo": echo,
+	}
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
 }
+
+// func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {
+// 	_, pkt := c.buildSystemMsgFriendActionPacket(req.RequestId, req.RequesterUin, accept)
+// 	_ = c.sendPacket(pkt)
+// }
 
 func (c *QQClient) getSKey() string {
 	if c.sig.SKeyExpiredTime < time.Now().Unix() && len(c.sig.G) > 0 {
@@ -2194,4 +2264,37 @@ func (c *QQClient) doHeartbeat() {
 		}
 	}
 	c.heartbeatEnabled = false
+}
+
+func (c *QQClient) GetStrangerInfo(uid int64) (ResponseGetStrangerInfo, error) {
+	echo := generateEcho("get_stranger_info")
+	// 构建请求
+	req := map[string]interface{}{
+		"action": "get_stranger_info",
+		"params": map[string]interface{}{
+			"user_id":  uid,
+			"no_cache": false,
+		},
+		"echo": echo,
+	}
+	// 创建响应通道并添加到映射中
+	respChan := make(chan *ResponseGetStrangerInfo)
+	c.responseStrangerInfo[echo] = respChan
+	// 发送请求
+	data, _ := json.Marshal(req)
+	c.sendToWebSocketClient(c.ws, data)
+	// 等待响应或超时
+	select {
+	case resp := <-respChan:
+		delete(c.responseStrangerInfo, echo)
+		if resp.Retcode == 0 {
+			logger.Debug("GetStrangerInfo Success")
+			return *resp, nil
+		} else {
+			return ResponseGetStrangerInfo{}, errors.New(resp.Message)
+		}
+	case <-time.After(10 * time.Second):
+		delete(c.responseStrangerInfo, echo)
+		return ResponseGetStrangerInfo{}, errors.New("get stranger info timeout")
+	}
 }
