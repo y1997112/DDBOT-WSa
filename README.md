@@ -6,9 +6,9 @@
 
 DDBOT-WSa 是基于 DDBOT-ws 的修改版本，目的是恢复DDBOT的原有功能。
 其它更详细的更动见更新日志。
-目前已经兼容：LLOnebot v3.x / NapCat v1.3.x / ws-plugin v0.6.x。
+目前已经兼容：LLOnebot v3.x / NapCat v1.x / ws-plugin v0.6.x。
 
-目前已恢复大部分指令（除了：mode、好友申请、群邀请）。
+**目前已经修复所有的主要指令（奇奇怪怪的指令没测试）。**
 
 以下是原DDBOT-ws的README.md：
 
