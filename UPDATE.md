@@ -1,6 +1,10 @@
 ## DDBOT最近更新日志
-- 2024-06-22 v0.1.2(WSa)
-  - 修复好友申请处理相关功能
+- 2024-06-23 v0.2.0(WSa)
+  - 恢复好友申请处理相关功能
+  - 恢复群邀请处理相关功能
+  - 恢复机器人的群禁言判定（实验）
+  - 支持解析file消息并记录
+  - 支持解析卡片消息并记录（实验）
   - 取消获取好友/群组/群员信息的流控
   - 发送流控限制为10条消息/秒（群聊）
     - 其实无法触及，无需在意（调试用）
@@ -11,10 +15,23 @@
   - 修改发送反馈等待时间为动态计算
   - 为消息处理添加消息队列（发送、接收）
   - 修复未加载群信息时发送消息导致的崩溃
-  - 为模板增加了如下时间函数：
-    - 取时间：getTime( "now" | "2024-06-22 15:15:47" | time string, "datetime" | "dateonly" | "timeonly" | "stamp" | format string) string
-    - 取时间戳：getTimeStamp( "2024-06-22 15:15:47" | time sring) int64
-    - 时间戳转时间：getUnixTime( 1719040547 | Stamp int64, "datetime" | "dateonly" | "timeonly" | "stamp" | format string ) string
+  - 为模板增加了如下函数：
+    - 时间操作：
+      - 取时间：getTime( "now" | "2024-06-22 15:15:47" | time string, "datetime" | "dateonly" | "timeonly" | "stamp" | format string) string
+      - 取时间戳：getTimeStamp( "2024-06-22 15:15:47" | time sring) int64
+      - 时间戳转时间：getUnixTime( 1719040547 | Stamp int64, "datetime" | "dateonly" | "timeonly" | "stamp" | format string ) string
+    - 文本操作：
+      - 替换文本：replace (str string, old string, new string, n int) string
+      - 替换所有文本：replaceAll (str string, old string, new string) string
+      - 查找第一次出现：find (str string, sub string) int
+      - 查找最后一次出现：findLast (str string, sub string) int
+      - 统计出现次数：count (str string, sub string) int
+      - 连接文本：link (text string, text string) string
+    - 数组操作：
+      - 删除str数组成员：delStrSlice (arr []string, sub string) []string
+    - 文件操作：
+      - 读取一行：readLine (path string, line int64) string, err0r
+      - 写入一行：writeLine (path string, line int64, content string) err0r
 
 - 2024-06-13 v0.1.1(WSa)
   - 继续优化ws消息处理函数

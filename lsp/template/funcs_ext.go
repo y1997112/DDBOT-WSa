@@ -1,8 +1,10 @@
 package template
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -544,4 +546,69 @@ func getTime(s interface{}, f string) string {
 	} else {
 		return t.Format(time.DateTime)
 	}
+}
+
+func readLine(p string, l int64) (string, error) {
+	file, err := os.OpenFile(p, os.O_RDONLY, 0666)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	reader := bufio.NewReader(file)
+	var ret string
+	for i := int64(0); ; i++ {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if i == l-1 {
+			ret = line
+			break
+		}
+	}
+	return ret, nil
+}
+
+func writeLine(p string, l int64, s string) error {
+	file, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	writer := bufio.NewWriter(file)
+	if l == 0 {
+		_, err = writer.WriteString(s)
+		if err != nil {
+			logger.Errorf("template: writeFile <%v> error %v", p, err)
+			return err
+		}
+	} else {
+		lines := make([]string, 0)
+		reader := bufio.NewReader(file)
+		for i := int64(0); ; i++ {
+			line, err := reader.ReadString('\n')
+			if err == io.EOF {
+				break
+			}
+			if i == l-1 {
+				lines = append(lines, s)
+			} else {
+				lines = append(lines, line)
+			}
+		}
+		_, err = file.Seek(0, 0)
+		if err != nil {
+			logger.Errorf("template: seek <%v> error %v", p, err)
+			return err
+		}
+		for _, line := range lines {
+			_, err = writer.WriteString(line)
+			if err != nil {
+				logger.Errorf("template: writeFile <%v> error %v", p, err)
+				return err
+			}
+		}
+	}
+	writer.Flush()
+	return nil
 }

@@ -82,6 +82,8 @@ func builtins() FuncMap {
 		"getUnixTime":  getUnixTime,
 		"cooldown":     cooldown,
 		"openFile":     openFile,
+		"readLine":     readLine,
+		"writeLine":    writeLine,
 		"updateFile":   updateFile,
 		"writeFile":    writeFile,
 		"abort":        abort,
@@ -154,6 +156,12 @@ func builtins() FuncMap {
 		"split":      func(sep, orig string) []string { return strings.Split(orig, sep) },
 		"join":       join,
 		"trunc":      trunc,
+		"replace":    strings.Replace,
+		"replaceAll": func(old, new, str string) string { return strings.ReplaceAll(str, old, new) },
+		"find":       strings.Index,
+		"findLast":   strings.LastIndex,
+		"count":      strings.Count,
+		"link":       func(a, b string) string { return a + b },
 
 		"snakecase": xstrings.ToSnakeCase,
 		"camelcase": xstrings.ToCamelCase,
@@ -187,10 +195,11 @@ func builtins() FuncMap {
 		"values":             values,
 
 		// list
-		"list":    list,
-		"append":  push,
-		"prepend": prepend,
-		"concat":  concat,
+		"list":        list,
+		"append":      push,
+		"prepend":     prepend,
+		"concat":      concat,
+		"delStrSlice": delStrSlice,
 
 		// http
 		"httpGet":      httpGet,

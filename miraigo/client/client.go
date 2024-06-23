@@ -275,6 +275,62 @@ type ResponseGetStrangerInfo struct {
 	Echo    string `json:"echo"`
 }
 
+// 卡片消息
+type CardMessage struct {
+	App    string `json:"app"`
+	Config struct {
+		AutoSize int    `json:"autosize"`
+		Width    int    `json:"width"`
+		Height   int    `json:"height"`
+		Forward  int    `json:"forward"`
+		CTime    int64  `json:"ctime"`
+		Round    int    `json:"round"`
+		Token    string `json:"token"`
+		Type     string `json:"type"`
+	} `json:"config"`
+	Extra struct {
+		AppType int   `json:"app_type"`
+		AppId   int64 `json:"appid"`
+		MsgSeq  int64 `json:"msg_seq"`
+		Uin     int64 `json:"uin"`
+	} `json:"extra"`
+	Meta struct {
+		News struct {
+			Action         string `json:"action"`
+			AndroidPkgName string `json:"android_pkg_name"`
+			AppType        int    `json:"app_type"`
+			AppId          int64  `json:"appid"`
+			CTime          int64  `json:"ctime"`
+			Desc           string `json:"desc"`
+			JumpUrl        string `json:"jumpUrl"`
+			PreView        string `json:"preview"`
+			TagIcon        string `json:"tagIcon"`
+			SourceIcon     string `json:"source_icon"`
+			SourceUrl      string `json:"source_url"`
+			Tag            string `json:"tag"`
+			Title          string `json:"title"`
+			Uin            int64  `json:"uin"`
+		} `json:"news"`
+		Detail_1 struct {
+			AppId   string `json:"appid"`
+			AppType int    `json:"app_type"`
+			Title   string `json:"title"`
+			Desc    string `json:"desc"`
+			Icon    string `json:"icon"`
+			PreView string `json:"preview"`
+			Url     string `json:"url"`
+			Scene   int    `json:"scene"`
+			Host    struct {
+				Uin  int64  `json:"uin"`
+				Nick string `json:"nick"`
+			} `json:"host"`
+		} `json:"detail_1"`
+	} `json:"meta"`
+	Prompt string `json:"prompt"`
+	Ver    string `json:"ver"`
+	View   string `json:"view"`
+}
+
 // Window represents a fixed-window
 type Window interface {
 	// Start returns the start boundary
@@ -513,6 +569,7 @@ type WebSocketMessage struct {
 	MessageSeq     DynamicInt64 `json:"message_seq"`
 	RawMessage     string       `json:"raw_message"`
 	TargetID       DynamicInt64 `json:"target_id"`
+	Duration       int32        `json:"duration"`
 	Echo           string       `json:"echo,omitempty"`
 }
 
@@ -725,6 +782,8 @@ func (c *QQClient) handleResponse(p []byte) {
 			respCh <- &SendResp
 		case "set_friend_add_request":
 			logger.Debug("Received set friend add request")
+		case "set_group_add_request":
+			logger.Debug("Received set group add request")
 		default:
 			logger.Warnf("Unknown action: %s", action)
 		}
@@ -879,6 +938,40 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							Size: int32(fileSize),
 						})
 					}
+				case "json":
+					// 处理json消息
+					if card, ok := contentMap["data"].(map[string]interface{}); ok {
+						switch card["data"].(type) {
+						case string:
+							var j CardMessage
+							err := json.Unmarshal([]byte(card["data"].(string)), &j)
+							if err != nil {
+								logger.Errorf("Failed to parse card message: %v", err)
+								continue
+							}
+							tag, title, desc, text := "", "", "", ""
+							if j.Meta.News.Title != "" {
+								tag = j.Meta.News.Tag
+								title = j.Meta.News.Title
+								desc = j.Meta.News.Desc
+								text = "[卡片][" + tag + "][" + title + "]" + desc
+							} else if j.Meta.Detail_1.Title != "" {
+								tag = j.Meta.Detail_1.Title
+								desc = j.Meta.Detail_1.Desc
+								text = "[卡片][" + tag + "]" + desc
+							}
+							g.Elements = append(g.Elements, &message.TextElement{Content: text})
+						default:
+							logger.Errorf("Unknown card message type: %v", card)
+						}
+					}
+
+				case "file":
+					file, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						text := "[文件]" + file["file"].(string)
+						g.Elements = append(g.Elements, &message.TextElement{Content: text})
+					}
 				}
 			}
 		}
@@ -1019,6 +1112,39 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							Size: int32(fileSize),
 						})
 					}
+				case "json":
+					// 处理json消息
+					if card, ok := contentMap["data"].(map[string]interface{}); ok {
+						switch card["data"].(type) {
+						case string:
+							var j CardMessage
+							err := json.Unmarshal([]byte(card["data"].(string)), &j)
+							if err != nil {
+								logger.Errorf("Failed to parse card message: %v", err)
+								continue
+							}
+							tag, title, desc, text := "", "", "", ""
+							if j.Meta.News.Title != "" {
+								tag = j.Meta.News.Tag
+								title = j.Meta.News.Title
+								desc = j.Meta.News.Desc
+								text = "[卡片][" + tag + "][" + title + "]" + desc
+							} else if j.Meta.Detail_1.Title != "" {
+								tag = j.Meta.Detail_1.Title
+								desc = j.Meta.Detail_1.Desc
+								text = "[卡片][" + tag + "]" + desc
+							}
+							pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+						default:
+							logger.Errorf("Unknown card message type: %v", card)
+						}
+					}
+				case "file":
+					file, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						text := "[文件]" + file["file"].(string)
+						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+					}
 				}
 			}
 		}
@@ -1038,7 +1164,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				// 刷新Bot.Uin
 				c.Uin = int64(wsmsg.SelfID)
 			}
-			logger.Debugf("收到 元事件 消息：%s", wsmsg.MetaEventType)
+			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
 		} else if wsmsg.PostType == "notice" {
 			// 通知事件
 			sync, refresh := false, false
@@ -1080,6 +1206,25 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				// 	"card_new": "吔屎大将军",
 				// 	"card_old": "吔屎大将军1"
 				// }
+			} else if wsmsg.NoticeType == "group_ban" {
+				c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
+					GroupCode:   wsmsg.GroupID.ToInt64(),
+					OperatorUin: wsmsg.OperatorId.ToInt64(),
+					TargetUin:   wsmsg.UserID.ToInt64(),
+					Time:        wsmsg.Duration,
+				})
+				//群禁言事件（返回示例）
+				// {
+				// 	"time": 1719116197,
+				// 	"self_id": 1143469507,
+				// 	"post_type": "notice",
+				// 	"group_id": 864046682,
+				// 	"user_id": 0,
+				// 	"notice_type": "group_ban", // 解除 "lift_ban"
+				// 	"operator_id": 313575803,
+				// 	"duration": -1,
+				// 	"sub_type": "ban"
+				// }
 			}
 			// 选择性执行上述结果
 			if sync {
@@ -1090,8 +1235,9 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					// c.SyncTickerControl(1, wsmsg, refresh)
 				}
 			}
-			logger.Infof("收到 通知事件 消息：%s", wsmsg.NoticeType)
+			logger.Infof("收到 通知事件 消息：%s: %s", wsmsg.NoticeType, wsmsg.SubType)
 		} else if wsmsg.PostType == "request" {
+			const StragngerInfoErr = "Failed to get stranger info: %v"
 			// 请求事件
 			if wsmsg.RequestType == "friend" {
 				friendRequest := NewFriendRequest{
@@ -1106,15 +1252,60 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				if err == nil {
 					friendRequest.RequesterNick = info.Data.NickName
 				} else {
-					logger.Errorf("Failed to get stranger info: %v", err)
+					logger.Warnf(StragngerInfoErr, err)
 				}
 				// 好友申请
 				c.NewFriendRequestEvent.dispatch(c, &friendRequest)
 			}
 			if wsmsg.RequestType == "group" {
-				// 加群邀请
+				if wsmsg.SubType == "add" {
+					// 加群申请
+					groupRequest := UserJoinGroupRequest{
+						RequestId:     time.Now().UnixNano() / 1e6,
+						Message:       wsmsg.Comment,
+						RequesterUin:  wsmsg.UserID.ToInt64(),
+						RequesterNick: "陌生人",
+						GroupCode:     wsmsg.GroupID.ToInt64(),
+						GroupName:     "未知",
+						Flag:          wsmsg.Flag,
+						client:        c,
+					}
+					user, err := c.GetStrangerInfo(groupRequest.RequesterUin)
+					if err == nil {
+						groupRequest.RequesterNick = user.Data.NickName
+					} else {
+						logger.Warnf(StragngerInfoErr, err)
+					}
+					groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
+					if groupInfo != nil {
+						groupRequest.GroupName = groupInfo.Name
+					}
+					c.UserWantJoinGroupEvent.dispatch(c, &groupRequest)
+				} else if wsmsg.SubType == "invite" {
+					// 群邀请
+					groupRequest := GroupInvitedRequest{
+						RequestId:   time.Now().UnixNano() / 1e6,
+						InvitorUin:  wsmsg.UserID.ToInt64(),
+						InvitorNick: "陌生人",
+						GroupCode:   wsmsg.GroupID.ToInt64(),
+						GroupName:   "未知",
+						Flag:        wsmsg.Flag,
+						client:      c,
+					}
+					user, err := c.GetStrangerInfo(groupRequest.InvitorUin)
+					if err == nil {
+						groupRequest.InvitorNick = user.Data.NickName
+					} else {
+						logger.Warnf(StragngerInfoErr, err)
+					}
+					groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
+					if groupInfo != nil {
+						groupRequest.GroupName = groupInfo.Name
+					}
+					c.GroupInvitedEvent.dispatch(c, &groupRequest)
+				}
 			}
-			logger.Infof("收到 请求事件 消息：%s", wsmsg.RequestType)
+			logger.Infof("收到 请求事件 消息: %s: %s", wsmsg.RequestType, wsmsg.SubType)
 		}
 	}
 }
@@ -2033,36 +2224,61 @@ func (c *QQClient) SolveGroupJoinRequest(i any, accept, block bool, reason strin
 		block = false
 		reason = ""
 	}
-
+	subType := ""
+	var Req interface{}
 	switch req := i.(type) {
 	case *UserJoinGroupRequest:
-		_, pkt := c.buildSystemMsgGroupActionPacket(req.RequestId, req.RequesterUin, req.GroupCode, func() int32 {
-			if req.Suspicious {
-				return 2
-			} else {
-				return 1
-			}
-		}(), false, accept, block, reason)
-		_ = c.sendPacket(pkt)
+		// _, pkt := c.buildSystemMsgGroupActionPacket(req.RequestId, req.RequesterUin, req.GroupCode, func() int32 {
+		// 	if req.Suspicious {
+		// 		return 2
+		// 	} else {
+		// 		return 1
+		// 	}
+		// }(), false, accept, block, reason)
+		// _ = c.sendPacket(pkt)
+		subType = "add"
+		Req = req
 	case *GroupInvitedRequest:
-		_, pkt := c.buildSystemMsgGroupActionPacket(req.RequestId, req.InvitorUin, req.GroupCode, 1, true, accept, block, reason)
-		_ = c.sendPacket(pkt)
+		// _, pkt := c.buildSystemMsgGroupActionPacket(req.RequestId, req.InvitorUin, req.GroupCode, 1, true, accept, block, reason)
+		// _ = c.sendPacket(pkt)
+		subType = "invite"
+		Req = req
 	}
+	echo := generateEcho("set_group_add_request")
+	// 构建请求
+	newReq := map[string]interface{}{
+		"action": "set_group_add_request",
+		"params": map[string]interface{}{
+			"sub_type": subType,
+			"approve":  accept,
+			"reason":   reason,
+		},
+		"echo": echo,
+	}
+	if _, ok := Req.(*UserJoinGroupRequest); ok {
+		newReq["params"].(map[string]interface{})["flag"] = Req.(*UserJoinGroupRequest).Flag
+	} else if _, ok := Req.(*GroupInvitedRequest); ok {
+		newReq["params"].(map[string]interface{})["flag"] = Req.(*GroupInvitedRequest).Flag
+	}
+	logger.Debugf("加群回复构建完成：%s", newReq)
+	// 发送请求
+	data, _ := json.Marshal(newReq)
+	c.sendToWebSocketClient(c.ws, data)
 }
 
-func (c *QQClient) SolveFriendRequest(newReq *NewFriendRequest, accept bool) {
+func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {
 	echo := generateEcho("set_friend_add_request")
 	// 构建请求
-	req := map[string]interface{}{
+	newReq := map[string]interface{}{
 		"action": "set_friend_add_request",
 		"params": map[string]interface{}{
-			"flag":    newReq.Flag,
+			"flag":    req.Flag,
 			"approve": accept,
 		},
 		"echo": echo,
 	}
 	// 发送请求
-	data, _ := json.Marshal(req)
+	data, _ := json.Marshal(newReq)
 	c.sendToWebSocketClient(c.ws, data)
 }
 

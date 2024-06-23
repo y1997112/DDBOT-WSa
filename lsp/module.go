@@ -267,6 +267,19 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 			return
 		}
 
+		requests, err := l.LspStateManager.ListGroupInvitedRequest()
+		if err != nil {
+			log.Errorf("ListGroupInvitedRequest error - %v", err)
+			return
+		}
+		for _, r := range requests {
+			if r.GroupCode == request.GroupCode {
+				l.LspStateManager.DeleteGroupInvitedRequest(request.RequestId)
+				log.Info("收到加群邀请，该群聊已在申请列表中，将忽略该申请")
+				return
+			}
+		}
+
 		fi := bot.FindFriend(request.InvitorUin)
 		if fi == nil {
 			log.Error("收到加群邀请，无法找到好友信息，将拒绝加群邀请")
