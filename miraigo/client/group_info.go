@@ -68,13 +68,13 @@ func init() {
 	decoders["OidbSvc.0x88d_0"] = decodeGroupInfoResponse
 }
 
-func (c *QQClient) GetGroupInfo(groupCode int64) (*GroupInfo, error) {
-	i, err := c.sendAndWait(c.buildGroupInfoRequestPacket(groupCode))
-	if err != nil {
-		return nil, err
-	}
-	return i.(*GroupInfo), nil
-}
+// func (c *QQClient) GetGroupInfo(groupCode int64) (*GroupInfo, error) {
+// 	i, err := c.sendAndWait(c.buildGroupInfoRequestPacket(groupCode))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return i.(*GroupInfo), nil
+// }
 
 // OidbSvc.0x88d_0
 func (c *QQClient) buildGroupInfoRequestPacket(groupCode int64) (uint16, []byte) {
