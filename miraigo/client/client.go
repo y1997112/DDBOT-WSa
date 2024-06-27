@@ -987,13 +987,16 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							logger.Errorf("Unknown card message type: %v", card)
 						}
 					}
-
 				case "file":
 					file, ok := contentMap["data"].(map[string]interface{})
 					if ok {
 						text := "[文件]" + file["file"].(string)
 						g.Elements = append(g.Elements, &message.TextElement{Content: text})
 					}
+				case "forward":
+					logger.Infof("Received forward message: %v", contentMap)
+				default:
+					logger.Warnf("Unknown content type: %s", contentType)
 				}
 			}
 		}
@@ -1167,6 +1170,10 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						text := "[文件]" + file["file"].(string)
 						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
 					}
+				case "forward":
+					logger.Infof("Received forward message: %v", contentMap)
+				default:
+					logger.Warnf("Unknown content type: %s", contentType)
 				}
 			}
 		}

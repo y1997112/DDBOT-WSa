@@ -1,4 +1,16 @@
 ## DDBOT最近更新日志
+- 2024-06-28 v0.2.2(WSa)
+  - 增加收到未知类型消息警告
+  - 识别forward消息（但暂不支持解析）
+  - 为模板增加了以下函数：
+    - 权限操作：
+      - 权限鉴别：isAdmin(uin int64, groupCode ...int64) bool
+    - 文件操作：
+      - 查找并读取行：findReadLine(path string, str string) string
+      - 查找并写入行：findWriteLine(path string, str string, newStr string) error
+    - 积分操作：
+      - 删除账户：delAcct(uin int64, groupCode int64) bool
+
 - 2024-06-25 v0.2.1(WSa)
   - 修改群组/成员刷新策略以优化性能
     - 除了启动时，其余均不再完整刷新

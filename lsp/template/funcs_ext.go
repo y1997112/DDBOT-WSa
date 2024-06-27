@@ -104,6 +104,26 @@ func botUin() int64 {
 	return localutils.GetBot().GetUin()
 }
 
+func isAdmin(uin int64, groupCode ...int64) bool {
+	key := localdb.Key("Permission", uin, "Admin")
+	ret := localdb.Exist(key)
+	if !ret && len(groupCode) > 0 {
+		key = localdb.Key("GroupPermission", groupCode[0], uin, "GroupAdmin")
+		ret = localdb.Exist(key)
+	}
+	return ret
+}
+
+func delAcct(uin int64, groupCode int64) bool {
+	key := localdb.Key("Score", groupCode, uin)
+	_, err := localdb.Delete(key)
+	if err != nil {
+		logger.Errorf("del Account error %v", err)
+		return false
+	}
+	return true
+}
+
 func setScore(uin int64, groupCode int64, num int64) int64 {
 	// date := time.Now().Format("20060102")
 
@@ -548,10 +568,10 @@ func getTime(s interface{}, f string) string {
 	}
 }
 
-func readLine(p string, l int64) (string, error) {
+func readLine(p string, l int64) string {
 	file, err := os.OpenFile(p, os.O_RDONLY, 0666)
 	if err != nil {
-		return "", err
+		return ""
 	}
 	defer file.Close()
 	reader := bufio.NewReader(file)
@@ -566,7 +586,62 @@ func readLine(p string, l int64) (string, error) {
 			break
 		}
 	}
-	return ret, nil
+	return ret
+}
+
+func findReadLine(p string, s string) string {
+	file, err := os.OpenFile(p, os.O_RDONLY, 0666)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	reader := bufio.NewReader(file)
+	for {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if strings.Contains(line, s) {
+			return line
+		}
+	}
+	return ""
+}
+
+func findWriteLine(p string, s string, n string) error {
+	file, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	lines := make([]string, 0)
+	reader := bufio.NewReader(file)
+	for {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			break
+		}
+		if strings.Contains(line, s) {
+			lines = append(lines, n)
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	writer := bufio.NewWriter(file)
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		logger.Errorf("template: seek <%v> error %v", p, err)
+		return err
+	}
+	for _, line := range lines {
+		_, err = writer.WriteString(line)
+		if err != nil {
+			logger.Errorf("template: writeFile <%v> error %v", p, err)
+			return err
+		}
+	}
+	writer.Flush()
+	return nil
 }
 
 func writeLine(p string, l int64, s string) error {
