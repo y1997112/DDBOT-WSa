@@ -185,7 +185,7 @@ type ResponseFriendList struct {
 // 好友信息
 type FriendData struct {
 	UserID   int64  `json:"user_id"`
-	NickName string `json:"nick_name"`
+	NickName string `json:"nickname"`
 	Remark   string `json:"remark"`
 	Sex      string `json:"sex"`
 	Level    int    `json:"level"`
@@ -579,6 +579,7 @@ type WebSocketMessage struct {
 	MessageSeq     DynamicInt64 `json:"message_seq"`
 	RawMessage     string       `json:"raw_message"`
 	TargetID       DynamicInt64 `json:"target_id"`
+	SenderID       DynamicInt64 `json:"sender_id"`
 	Duration       int32        `json:"duration"`
 	Echo           string       `json:"echo,omitempty"`
 }
@@ -924,10 +925,28 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						if tmp, ok := image["file_size"].(string); ok {
 							size, err = strconv.Atoi(tmp)
 						}
-						g.Elements = append(g.Elements, &message.GroupImageElement{
-							Size: int32(size),
-							Url:  image["url"].(string),
-						})
+						if contentMap["subType"] == nil {
+							g.Elements = append(g.Elements, &message.GroupImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							})
+						} else {
+							if contentMap["subType"].(float64) == 1.0 {
+								g.Elements = append(g.Elements, &message.MarketFaceElement{
+									Name:       "[图片表情]",
+									FaceId:     []byte(image["file"].(string)),
+									SubType:    3,
+									TabId:      0,
+									MediaType:  2,
+									EncryptKey: []byte("0"),
+								})
+							} else {
+								g.Elements = append(g.Elements, &message.GroupImageElement{
+									Size: int32(size),
+									Url:  image["url"].(string),
+								})
+							}
+						}
 					}
 				case "reply":
 					replySeq := 0
@@ -994,7 +1013,11 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						g.Elements = append(g.Elements, &message.TextElement{Content: text})
 					}
 				case "forward":
-					logger.Infof("Received forward message: %v", contentMap)
+					_, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						// text := "[聊天记录]" + forward["id"].(string)
+						g.Elements = append(g.Elements, &message.TextElement{Content: "[聊天记录]"})
+					}
 				default:
 					logger.Warnf("Unknown content type: %s", contentType)
 				}
@@ -1102,10 +1125,28 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						if tmp, ok := image["file_size"].(string); ok {
 							size, err = strconv.Atoi(tmp)
 						}
-						pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
-							Size: int32(size),
-							Url:  image["url"].(string),
-						})
+						if contentMap["subType"] == nil {
+							pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							})
+						} else {
+							if contentMap["subType"].(float64) == 1.0 {
+								pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
+									Name:       "[图片表情]",
+									FaceId:     []byte(image["file"].(string)),
+									SubType:    3,
+									TabId:      0,
+									MediaType:  2,
+									EncryptKey: []byte("0"),
+								})
+							} else {
+								pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
+									Size: int32(size),
+									Url:  image["url"].(string),
+								})
+							}
+						}
 					}
 				case "reply":
 					replySeq := 0
@@ -1171,7 +1212,11 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
 					}
 				case "forward":
-					logger.Infof("Received forward message: %v", contentMap)
+					_, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						// text := "[聊天记录]" + forward["id"].(string)
+						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: "[聊天记录]"})
+					}
 				default:
 					logger.Warnf("Unknown content type: %s", contentType)
 				}
@@ -1240,16 +1285,27 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				c.ReloadFriendList()
 				// c.SyncTickerControl(2, WebSocketMessage{}, false)
 			} else if wsmsg.SubType == "poke" {
+				if wsmsg.GroupID != 0 {
+					// 群戳一戳事件
+				} else {
+					// 好友戳一戳事件
+					if wsmsg.TargetID.ToInt64() == c.Uin {
+						c.FriendNotifyEvent.dispatch(c, &FriendPokeNotifyEvent{
+							Sender:   wsmsg.SenderID.ToInt64(),
+							Receiver: wsmsg.TargetID.ToInt64(),
+						})
+					}
+				}
 				// 戳一戳事件（返回示例）
 				// {
-				// 	"time": 1717917916,
-				// 	"self_id": 1143469507,
+				// 	"time": 1719850095,
+				// 	"self_id": 313575803,
 				// 	"post_type": "notice",
 				// 	"notice_type": "notify",
 				// 	"sub_type": "poke",
-				// 	"target_id": 0,
-				// 	"user_id": 0,
-				// 	"group_id": 615231979
+				// 	"target_id": 313575803,
+				// 	"user_id": 1143469507,
+				// 	"sender_id": 1143469507 // 或 "group_id"
 				// }
 			} else if wsmsg.NoticeType == "group_card" {
 				//群名片修改（返回示例）

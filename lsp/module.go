@@ -660,7 +660,7 @@ func (l *Lsp) NewVersionNotify(newVersionChan <-chan string) {
 			continue
 		}
 		m := mmsg.NewMSG()
-		m.Textf("DDBOT管理员您好，DDBOT有可用更新版本【%v】，请前往 https://github.com/Sora233/DDBOT/releases 查看详细信息\n\n", newVersion)
+		m.Textf("DDBOT管理员您好，DDBOT有可用更新版本【%v】，请前往 https://github.com/cnxysoft/DDBOT-WSa/releases 查看详细信息\n\n", newVersion)
 		m.Textf("如果您不想接收更新消息，请输入<%v>(不含括号)", l.CommandShowName(NoUpdateCommand))
 		for _, admin := range l.PermissionStateManager.ListAdmin() {
 			if localdb.Exist(localdb.DDBotNoUpdateKey(admin)) {
