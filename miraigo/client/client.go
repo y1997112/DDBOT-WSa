@@ -259,26 +259,22 @@ type ResponseGetStrangerInfo struct {
 	Status  string `json:"status"`
 	Retcode int    `json:"retcode"`
 	Data    struct {
-		Result int    `json:"result"`
-		ErrMsg string `json:"errMsg"`
-		Info   struct {
-			Uin       string `json:"uin"`
-			Nick      string `json:"nick"`
-			LongNick  string `json:"longNick"`
-			Sex       int    `json:"sex"`
-			ShengXiao int    `json:"shengXiao"`
-			RegTime   int64  `json:"regTime"`
-			QQLevel   struct {
-				CrownNum int `json:"crownNum"`
-				SunNum   int `json:"sunNum"`
-				MoonNum  int `json:"moonNum"`
-				StarNum  int `json:"starNum"`
-			} `json:"qqLevel"`
-		} `json:"info"`
-		UserID   int64  `json:"user_id"`
-		NickName string `json:"nickname"`
-		Age      int    `json:"age"`
-		Level    int    `json:"level"`
+		UID       string `json:"uid"`
+		Uin       string `json:"uin"`
+		Nick      string `json:"nick"`
+		Remark    string `json:"remark"`
+		LongNick  string `json:"longNick"`
+		Sex       string `json:"sex"`
+		ShengXiao int    `json:"shengXiao"`
+		RegTime   int64  `json:"regTime"`
+		QQLevel   struct {
+			CrownNum int `json:"crownNum"`
+			SunNum   int `json:"sunNum"`
+			MoonNum  int `json:"moonNum"`
+			StarNum  int `json:"starNum"`
+		} `json:"qqLevel"`
+		Age   int `json:"age"`
+		Level int `json:"level"`
 	} `json:"data"`
 	Message string `json:"message"`
 	Wording string `json:"wording"`
@@ -1282,7 +1278,20 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					sync = true
 				}
 			} else if wsmsg.NoticeType == "friend_add" {
-				c.ReloadFriendList()
+				// 新增好友事件
+				friend, err := c.GetStrangerInfo(wsmsg.UserID.ToInt64())
+				if err != nil {
+					c.NewFriendEvent.dispatch(c, &NewFriendEvent{
+						Friend: &FriendInfo{
+							Uin:      wsmsg.UserID.ToInt64(),
+							Nickname: friend.Data.Nick,
+							Remark:   friend.Data.Remark,
+							FaceId:   0,
+						},
+					})
+				} else {
+					c.ReloadFriendList()
+				}
 				// c.SyncTickerControl(2, WebSocketMessage{}, false)
 			} else if wsmsg.SubType == "poke" {
 				if wsmsg.GroupID != 0 {
@@ -1363,7 +1372,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				}
 				info, err := c.GetStrangerInfo(friendRequest.RequesterUin)
 				if err == nil {
-					friendRequest.RequesterNick = info.Data.NickName
+					friendRequest.RequesterNick = info.Data.Nick
 				} else {
 					logger.Warnf(StragngerInfoErr, err)
 				}
@@ -1385,7 +1394,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					}
 					user, err := c.GetStrangerInfo(groupRequest.RequesterUin)
 					if err == nil {
-						groupRequest.RequesterNick = user.Data.NickName
+						groupRequest.RequesterNick = user.Data.Nick
 					} else {
 						logger.Warnf(StragngerInfoErr, err)
 					}
@@ -1407,7 +1416,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					}
 					user, err := c.GetStrangerInfo(groupRequest.InvitorUin)
 					if err == nil {
-						groupRequest.InvitorNick = user.Data.NickName
+						groupRequest.InvitorNick = user.Data.Nick
 					} else {
 						logger.Warnf(StragngerInfoErr, err)
 					}
