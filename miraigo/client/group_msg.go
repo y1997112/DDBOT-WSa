@@ -136,7 +136,13 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 		expTime = 90
 	}
 	expTime += 6
-	logger.Infof("发送 群消息 预期耗时 %.0fs Echo: %s", expTime, msg.Echo)
+	tmpMsg := ""
+	if len(msg.Params.Message) > 75 {
+		tmpMsg = msg.Params.Message[:75] + "..."
+	} else {
+		tmpMsg = msg.Params.Message
+	}
+	logger.Infof("发送 群消息 给 (%v) 预期耗时 %.0fs: %s", finalGroupID, expTime, tmpMsg)
 	c.sendToWebSocketClient(c.ws, data)
 
 	// 等待响应或超时

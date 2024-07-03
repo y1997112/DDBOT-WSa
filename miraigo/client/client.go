@@ -762,7 +762,7 @@ func (c *QQClient) handleResponse(p []byte) {
 				return
 			}
 			respCh <- &friendData
-		case "send_group_msg":
+		case "send_group_msg", "send_private_msg":
 			respCh, isResponse := c.responseMessage[basicMsg.Echo]
 			if !isResponse {
 				logger.Warnf("No response channel for message: %s", basicMsg.Echo)
@@ -997,23 +997,44 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 								desc = j.Meta.Detail_1.Desc
 								text = "[卡片][" + tag + "]" + desc
 							}
-							g.Elements = append(g.Elements, &message.TextElement{Content: text})
+							g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
 						default:
 							logger.Errorf("Unknown card message type: %v", card)
 						}
 					}
 				case "file":
-					file, ok := contentMap["data"].(map[string]interface{})
+					_, ok := contentMap["data"].(map[string]interface{})
 					if ok {
-						text := "[文件]" + file["file"].(string)
+						text := "[文件]" // + file["file"].(string)
 						g.Elements = append(g.Elements, &message.TextElement{Content: text})
 					}
 				case "forward":
-					_, ok := contentMap["data"].(map[string]interface{})
+					forward, ok := contentMap["data"].(map[string]interface{})
 					if ok {
-						// text := "[聊天记录]" + forward["id"].(string)
-						g.Elements = append(g.Elements, &message.TextElement{Content: "[聊天记录]"})
+						text := "[合并转发]" // + forward["id"].(string)
+						g.Elements = append(g.Elements, &message.ForwardElement{
+							Content: text,
+							ResId:   forward["id"].(string),
+						})
 					}
+				case "video":
+					video, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						fileSize, _ := strconv.Atoi(video["file_size"].(string))
+						g.Elements = append(g.Elements, &message.ShortVideoElement{
+							Name: video["file"].(string),
+							Uuid: []byte(video["file_id"].(string)),
+							Size: int32(fileSize),
+							Url:  video["url"].(string),
+						})
+						/*
+							LLOB收到的video类型数据示例：
+							map[string]interface {} ["file": ".mp4", "path": "C:\\Users\\adevi\\Documents\\Tencent Files\\1143469507\\nt_qq\\nt_data\\Video\\2024-07\\Ori\\b24e3a5e725ef156c6c1a2952fba7e95.mp4", "file_id": "CgoxMTQzNDY5NTA3EhRVzq7teOgsGiZb6ie79Cs2KXFkyRjZqP8EIIcLKJ-p0cmpiocDUID1JA", "file_size": "10474585", "url": "https://multimedia.nt.qq.com.cn:443/download?appid=1415&format=origin&orgfmt=t264&spec=0&client_proto=ntv2&client_appid=537226356&client_type=win&client_ver=9.9.11-24402&client_down_type=auto&client_aio_type=aio&rkey=CAQSgAEAeiVhDYuSzI7DqvUpMmuP90fvCJi_a6tITce7D-Rn8ay-MG4uJUD8kfUH9LuBi10T2af2g9t4hYhLT_uunXuLZ7kiw7wEebeJfsVdTnULb-ouAXvpoj7_5N1acir0NOjJ4jtOdM9UPXd-2h93k9On49iHC1QdMk4vMg4aU6DsUQ", ]
+						*/
+					}
+				case "markdown":
+					text := "[Markdown]"
+					g.Elements = append(g.Elements, &message.TextElement{Content: text})
 				default:
 					logger.Warnf("Unknown content type: %s", contentType)
 				}
@@ -1196,23 +1217,44 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 								desc = j.Meta.Detail_1.Desc
 								text = "[卡片][" + tag + "]" + desc
 							}
-							pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+							pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
 						default:
 							logger.Errorf("Unknown card message type: %v", card)
 						}
 					}
 				case "file":
-					file, ok := contentMap["data"].(map[string]interface{})
+					_, ok := contentMap["data"].(map[string]interface{})
 					if ok {
-						text := "[文件]" + file["file"].(string)
+						text := "[文件]" // + file["file"].(string)
 						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
 					}
 				case "forward":
-					_, ok := contentMap["data"].(map[string]interface{})
+					forward, ok := contentMap["data"].(map[string]interface{})
 					if ok {
-						// text := "[聊天记录]" + forward["id"].(string)
-						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: "[聊天记录]"})
+						text := "[合并转发]" // + forward["id"].(string)
+						pMsg.Elements = append(pMsg.Elements, &message.ForwardElement{
+							Content: text,
+							ResId:   forward["id"].(string),
+						})
 					}
+				case "video":
+					video, ok := contentMap["data"].(map[string]interface{})
+					if ok {
+						fileSize, _ := strconv.Atoi(video["file_size"].(string))
+						pMsg.Elements = append(pMsg.Elements, &message.ShortVideoElement{
+							Name: video["file"].(string),
+							Uuid: []byte(video["file_id"].(string)),
+							Size: int32(fileSize),
+							Url:  video["url"].(string),
+						})
+						/*
+							LLOB收到的video类型数据示例：
+							map[string]interface {} ["file": ".mp4", "path": "C:\\Users\\adevi\\Documents\\Tencent Files\\1143469507\\nt_qq\\nt_data\\Video\\2024-07\\Ori\\b24e3a5e725ef156c6c1a2952fba7e95.mp4", "file_id": "CgoxMTQzNDY5NTA3EhRVzq7teOgsGiZb6ie79Cs2KXFkyRjZqP8EIIcLKJ-p0cmpiocDUID1JA", "file_size": "10474585", "url": "https://multimedia.nt.qq.com.cn:443/download?appid=1415&format=origin&orgfmt=t264&spec=0&client_proto=ntv2&client_appid=537226356&client_type=win&client_ver=9.9.11-24402&client_down_type=auto&client_aio_type=aio&rkey=CAQSgAEAeiVhDYuSzI7DqvUpMmuP90fvCJi_a6tITce7D-Rn8ay-MG4uJUD8kfUH9LuBi10T2af2g9t4hYhLT_uunXuLZ7kiw7wEebeJfsVdTnULb-ouAXvpoj7_5N1acir0NOjJ4jtOdM9UPXd-2h93k9On49iHC1QdMk4vMg4aU6DsUQ", ]
+						*/
+					}
+				case "markdown":
+					text := "[Markdown]"
+					pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
 				default:
 					logger.Warnf("Unknown content type: %s", contentType)
 				}
@@ -1280,7 +1322,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 			} else if wsmsg.NoticeType == "friend_add" {
 				// 新增好友事件
 				friend, err := c.GetStrangerInfo(wsmsg.UserID.ToInt64())
-				if err != nil {
+				if err == nil {
 					c.NewFriendEvent.dispatch(c, &NewFriendEvent{
 						Friend: &FriendInfo{
 							Uin:      wsmsg.UserID.ToInt64(),
@@ -1479,6 +1521,12 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 			tmpText += "[引用]"
 		} else if _, ok := elem.(*message.VoiceElement); ok {
 			tmpText += "[语音]"
+		} else if e, ok := elem.(*message.ForwardElement); ok {
+			tmpText += e.Content
+		} else if e, ok := elem.(*message.LightAppElement); ok {
+			tmpText += e.Content
+		} else if _, ok := elem.(*message.ShortVideoElement); ok {
+			tmpText += "[视频]"
 		}
 	}
 	if !mode {
