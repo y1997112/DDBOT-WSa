@@ -74,68 +74,102 @@ func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, n
 		return nil
 	}
 	// 构造消息
-	echo := generateEcho("send_private_msg")
-	msg := WebSocketActionMessagePrivate{
-		Action: "send_private_msg",
-		Params: WebSocketParamsPrivate{
-			UserID:  finalUserID,
-			Message: newstr,
-		},
-		Echo: echo,
-	}
+	// echo := generateEcho("send_private_msg")
+	// msg := WebSocketActionMessagePrivate{
+	// 	Action: "send_private_msg",
+	// 	Params: WebSocketParamsPrivate{
+	// 		UserID:  finalUserID,
+	// 		Message: newstr,
+	// 	},
+	// 	Echo: echo,
+	// }
 
-	data, err := json.Marshal(msg)
-	if err != nil {
-		//fmt.Printf("Failed to marshal message to JSON: %v", err)
-		logger.Errorf("Failed to marshal message to JSON: %v", err)
-		return nil
-	}
+	// data, err := json.Marshal(msg)
+	// if err != nil {
+	// 	//fmt.Printf("Failed to marshal message to JSON: %v", err)
+	// 	logger.Errorf("Failed to marshal message to JSON: %v", err)
+	// 	return nil
+	// }
 
-	respChan := make(chan *ResponseSendMessage)
-	c.responseMessage[echo] = respChan
+	// respChan := make(chan *ResponseSendMessage)
+	// c.responseMessage[echo] = respChan
 	expTime := math.Ceil(float64(totalLen) / 131072)
 	if totalLen < 1024 && imgCount > 0 {
 		expTime = 90
 	}
 	expTime += 6
 	tmpMsg := ""
-	if len(msg.Params.Message) > 75 {
-		tmpMsg = msg.Params.Message[:75] + "..."
+	if len(newstr) > 75 {
+		tmpMsg = newstr[:75] + "..."
 	} else {
-		tmpMsg = msg.Params.Message
+		tmpMsg = newstr
 	}
 	logger.Infof("发送 私聊消息 给 (%v) 预期耗时 %.0fs: %s", finalUserID, expTime, tmpMsg)
-	c.sendToWebSocketClient(c.ws, data)
+	// c.sendToWebSocketClient(c.ws, data)
 
-	select {
-	case resp := <-respChan:
-		delete(c.responseMessage, echo)
-		if resp.Retcode == 0 {
-			c.stat.MessageSent.Add(1)
-			retMsg := &message.PrivateMessage{
-				Id:         resp.Data.MessageID,
-				InternalId: int32(rand.Uint32()),
-				Self:       c.Uin,
-				Target:     target,
-				Sender: &message.Sender{
-					Uin:      c.Uin,
-					Nickname: c.Nickname,
-					IsFriend: true,
-				},
-				Time:     int32(time.Now().Unix()),
-				Elements: m.Elements,
-			}
-			go c.SelfPrivateMessageEvent.dispatch(c, retMsg)
-			return retMsg
-		} else {
-			logger.Errorf("发送私聊消息失败: %d", resp.Retcode)
-		}
-		//return c.sendGroupMessage(groupCode, false, m, msgID)
-	case <-time.After(time.Duration(expTime) * time.Second):
-		delete(c.responseMessage, echo)
-		logger.Errorf("发送私聊消息超时: %d", expTime)
+	data, err := c.SendApi("send_private_msg", map[string]any{
+		"user_id": finalUserID,
+		"message": newstr,
+	})
+	if err != nil {
+		logger.Errorf("发送私聊消息失败: %v", err)
+		return nil
 	}
-	return nil
+	t, err := json.Marshal(data)
+	if err != nil {
+		logger.Errorf("解析私聊消息响应失败: %v", err)
+		return nil
+	}
+	var resp ResponseSendMessage
+	if err = json.Unmarshal(t, &resp.Data); err != nil {
+		logger.Errorf("解析私聊消息响应失败: %v", err)
+		return nil
+	}
+	c.stat.MessageSent.Add(1)
+	retMsg := &message.PrivateMessage{
+		Id:         resp.Data.MessageID,
+		InternalId: int32(rand.Uint32()),
+		Self:       c.Uin,
+		Target:     target,
+		Sender: &message.Sender{
+			Uin:      c.Uin,
+			Nickname: c.Nickname,
+			IsFriend: true,
+		},
+		Time:     int32(time.Now().Unix()),
+		Elements: m.Elements,
+	}
+	go c.SelfPrivateMessageEvent.dispatch(c, retMsg)
+	return retMsg
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseMessage, echo)
+	// 	if resp.Retcode == 0 {
+	// 		c.stat.MessageSent.Add(1)
+	// 		retMsg := &message.PrivateMessage{
+	// 			Id:         resp.Data.MessageID,
+	// 			InternalId: int32(rand.Uint32()),
+	// 			Self:       c.Uin,
+	// 			Target:     target,
+	// 			Sender: &message.Sender{
+	// 				Uin:      c.Uin,
+	// 				Nickname: c.Nickname,
+	// 				IsFriend: true,
+	// 			},
+	// 			Time:     int32(time.Now().Unix()),
+	// 			Elements: m.Elements,
+	// 		}
+	// 		go c.SelfPrivateMessageEvent.dispatch(c, retMsg)
+	// 		return retMsg
+	// 	} else {
+	// 		logger.Errorf("发送私聊消息失败: %d", resp.Retcode)
+	// 	}
+	// 	//return c.sendGroupMessage(groupCode, false, m, msgID)
+	// case <-time.After(time.Duration(expTime) * time.Second):
+	// 	delete(c.responseMessage, echo)
+	// 	logger.Errorf("发送私聊消息超时: %d", expTime)
+	// }
+	// return nil
 	// mr := int32(rand.Uint32())
 	// var seq int32
 	// t := time.Now().Unix()

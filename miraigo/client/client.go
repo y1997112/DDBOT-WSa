@@ -132,16 +132,17 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws                   *websocket.Conn
-	responseChans        map[string]chan *ResponseGroupsData
-	responseGroupChans   map[string]chan *ResponseGroupData
-	responseMembers      map[string]chan *ResponseGroupMemberData
-	responseFriends      map[string]chan *ResponseFriendList
-	responseMessage      map[string]chan *ResponseSendMessage
-	responseSetLeave     map[string]chan *ResponseSetGroupLeave
-	responseStrangerInfo map[string]chan *ResponseGetStrangerInfo
-	currentEcho          string
-	limiterMessageSend   *RateLimiter
+	ws *websocket.Conn
+	// responseChans        map[string]chan *ResponseGroupsData
+	// responseGroupChans   map[string]chan *ResponseGroupData
+	// responseMembers      map[string]chan *ResponseGroupMemberData
+	// responseFriends      map[string]chan *ResponseFriendList
+	// responseMessage      map[string]chan *ResponseSendMessage
+	// responseSetLeave     map[string]chan *ResponseSetGroupLeave
+	// responseStrangerInfo map[string]chan *ResponseGetStrangerInfo
+	responseCh         map[string]chan *T
+	currentEcho        string
+	limiterMessageSend *RateLimiter
 }
 
 // 新增
@@ -256,29 +257,31 @@ type SendResp struct {
 
 // 查陌生人返回
 type ResponseGetStrangerInfo struct {
-	Status  string `json:"status"`
-	Retcode int    `json:"retcode"`
-	Data    struct {
-		UID       string `json:"uid"`
-		Uin       string `json:"uin"`
-		Nick      string `json:"nick"`
-		Remark    string `json:"remark"`
-		LongNick  string `json:"longNick"`
-		Sex       string `json:"sex"`
-		ShengXiao int    `json:"shengXiao"`
-		RegTime   int64  `json:"regTime"`
-		QQLevel   struct {
-			CrownNum int `json:"crownNum"`
-			SunNum   int `json:"sunNum"`
-			MoonNum  int `json:"moonNum"`
-			StarNum  int `json:"starNum"`
-		} `json:"qqLevel"`
-		Age   int `json:"age"`
-		Level int `json:"level"`
-	} `json:"data"`
-	Message string `json:"message"`
-	Wording string `json:"wording"`
-	Echo    string `json:"echo"`
+	Status  string       `json:"status"`
+	Retcode int          `json:"retcode"`
+	Data    StrangerInfo `json:"data"`
+	Message string       `json:"message"`
+	Wording string       `json:"wording"`
+	Echo    string       `json:"echo"`
+}
+
+type StrangerInfo struct {
+	UID       string `json:"uid"`
+	Uin       string `json:"uin"`
+	Nick      string `json:"nick"`
+	Remark    string `json:"remark"`
+	LongNick  string `json:"longNick"`
+	Sex       string `json:"sex"`
+	ShengXiao int    `json:"shengXiao"`
+	RegTime   int64  `json:"regTime"`
+	QQLevel   struct {
+		CrownNum int `json:"crownNum"`
+		SunNum   int `json:"sunNum"`
+		MoonNum  int `json:"moonNum"`
+		StarNum  int `json:"starNum"`
+	} `json:"qqLevel"`
+	Age   int `json:"age"`
+	Level int `json:"level"`
 }
 
 // 卡片消息
@@ -335,6 +338,24 @@ type CardMessage struct {
 	Prompt string `json:"prompt"`
 	Ver    string `json:"ver"`
 	View   string `json:"view"`
+}
+
+// // 返回结构
+// type T struct {
+// 	Status  string `json:"status"`
+// 	RetCode int    `json:"retcode"`
+// 	Message string `json:"message"`
+// 	Wording string `json:"wording"`
+// 	Data    any    `json:"data"`
+// }
+
+// 返回结构
+type T struct {
+	Status  string `json:"status"`
+	RetCode int    `json:"retcode"`
+	Message string `json:"message"`
+	Wording string `json:"wording"`
+	Data    any    `json:"data"`
 }
 
 // Window represents a fixed-window
@@ -576,6 +597,8 @@ type WebSocketMessage struct {
 	RawMessage     string       `json:"raw_message"`
 	TargetID       DynamicInt64 `json:"target_id"`
 	SenderID       DynamicInt64 `json:"sender_id"`
+	CardOld        string       `json:"card_old"`
+	CardNew        string       `json:"card_new"`
 	Duration       int32        `json:"duration"`
 	Echo           string       `json:"echo,omitempty"`
 }
@@ -707,105 +730,128 @@ func (c *QQClient) handleResponse(p []byte) {
 		return
 	}
 	if basicMsg.Echo != "" {
-		action, _ := parseEcho(basicMsg.Echo)
-		logger.Debugf("Received action: %s", action)
-		//根据echo判断
-		switch action {
-		case "get_group_list":
-			respCh, isResponse := c.responseChans[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for group list: %s", basicMsg.Echo)
-				return
-			}
-			var groupData ResponseGroupsData
-			if err := json.Unmarshal(p, &groupData); err != nil {
-				//log.Println("Failed to unmarshal group data:", err)
-				logger.Errorf("Failed to unmarshal group data: %v", err)
-				return
-			}
-			respCh <- &groupData
-		case "get_group_info":
-			respCh, isResponse := c.responseGroupChans[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for group info: %s", basicMsg.Echo)
-				return
-			}
-			var groupData ResponseGroupData
-			if err := json.Unmarshal(p, &groupData); err != nil {
-				logger.Errorf("Failed to unmarshal group data: %v", err)
-				return
-			}
-			respCh <- &groupData
-		case "get_group_member_list":
-			respCh, isResponse := c.responseMembers[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for group member list: %s", basicMsg.Echo)
-				return
-			}
-			var memberData ResponseGroupMemberData
-			if err := json.Unmarshal(p, &memberData); err != nil {
-				//log.Println("Failed to unmarshal group member data:", err)
-				logger.Errorf("Failed to unmarshal group member data: %v", err)
-				return
-			}
-			respCh <- &memberData
-		case "get_friend_list":
-			respCh, isResponse := c.responseFriends[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for friend list: %s", basicMsg.Echo)
-				return
-			}
-			var friendData ResponseFriendList
-			if err := json.Unmarshal(p, &friendData); err != nil {
-				//log.Println("Failed to unmarshal friend data:", err)
-				logger.Errorf("Failed to unmarshal friend data: %v", err)
-				return
-			}
-			respCh <- &friendData
-		case "send_group_msg", "send_private_msg":
-			respCh, isResponse := c.responseMessage[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for message: %s", basicMsg.Echo)
-				return
-			}
-			var SendResp ResponseSendMessage
-			if err := json.Unmarshal(p, &SendResp); err != nil {
-				//log.Println("Failed to unmarshal send message response:", err)
-				logger.Errorf("Failed to unmarshal send message response: %v", err)
-				return
-			}
-			respCh <- &SendResp
-		case "set_group_leave":
-			respCh, isResponse := c.responseSetLeave[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for set group leave: %s", basicMsg.Echo)
-				return
-			}
-			var SendResp ResponseSetGroupLeave
-			if err = json.Unmarshal(p, &SendResp); err != nil {
-				logger.Errorf("Failed to unmarshal set group leave response: %v", err)
-				return
-			}
-			respCh <- &SendResp
-		case "get_stranger_info":
-			respCh, isResponse := c.responseStrangerInfo[basicMsg.Echo]
-			if !isResponse {
-				logger.Warnf("No response channel for get stranger info: %s", basicMsg.Echo)
-				return
-			}
-			var SendResp ResponseGetStrangerInfo
-			if err = json.Unmarshal(p, &SendResp); err != nil {
-				logger.Errorf("Failed to unmarshal get stranger info response: %v", err)
-				return
-			}
-			respCh <- &SendResp
-		case "set_friend_add_request":
-			logger.Debug("Received set friend add request")
-		case "set_group_add_request":
-			logger.Debug("Received set group add request")
-		default:
-			logger.Warnf("Unknown action: %s", action)
+		respCh, isResponse := c.responseCh[basicMsg.Echo]
+		if !isResponse {
+			logger.Warnf("No response channel for echo: %s", basicMsg.Echo)
+			return
 		}
+		var resp T
+		if err = json.Unmarshal(p, &resp); err != nil {
+			logger.Errorf("Failed to unmarshal get message response: %v", err)
+			return
+		}
+		respCh <- &resp
+		// action, _ := parseEcho(basicMsg.Echo)
+		// logger.Debugf("Received action: %s", action)
+		//根据echo判断
+		// switch action {
+		// case "get_group_list":
+		// 	respCh, isResponse := c.responseChans[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for group list: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var groupData ResponseGroupsData
+		// 	if err := json.Unmarshal(p, &groupData); err != nil {
+		// 		//log.Println("Failed to unmarshal group data:", err)
+		// 		logger.Errorf("Failed to unmarshal group data: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &groupData
+		// case "get_group_info":
+		// 	respCh, isResponse := c.responseGroupChans[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for group info: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var groupData ResponseGroupData
+		// 	if err := json.Unmarshal(p, &groupData); err != nil {
+		// 		logger.Errorf("Failed to unmarshal group data: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &groupData
+		// case "get_group_member_list":
+		// 	respCh, isResponse := c.responseMembers[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for group member list: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var memberData ResponseGroupMemberData
+		// 	if err := json.Unmarshal(p, &memberData); err != nil {
+		// 		//log.Println("Failed to unmarshal group member data:", err)
+		// 		logger.Errorf("Failed to unmarshal group member data: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &memberData
+		// case "get_friend_list":
+		// 	respCh, isResponse := c.responseFriends[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for friend list: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var friendData ResponseFriendList
+		// 	if err := json.Unmarshal(p, &friendData); err != nil {
+		// 		//log.Println("Failed to unmarshal friend data:", err)
+		// 		logger.Errorf("Failed to unmarshal friend data: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &friendData
+		// case "send_group_msg", "send_private_msg":
+		// 	respCh, isResponse := c.responseMessage[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for message: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var SendResp ResponseSendMessage
+		// 	if err := json.Unmarshal(p, &SendResp); err != nil {
+		// 		//log.Println("Failed to unmarshal send message response:", err)
+		// 		logger.Errorf("Failed to unmarshal send message response: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &SendResp
+		// case "set_group_leave":
+		// 	respCh, isResponse := c.responseSetLeave[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for set group leave: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var SendResp ResponseSetGroupLeave
+		// 	if err = json.Unmarshal(p, &SendResp); err != nil {
+		// 		logger.Errorf("Failed to unmarshal set group leave response: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &SendResp
+		// case "get_stranger_info":
+		// 	respCh, isResponse := c.responseStrangerInfo[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for get stranger info: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var SendResp ResponseGetStrangerInfo
+		// 	if err = json.Unmarshal(p, &SendResp); err != nil {
+		// 		logger.Errorf("Failed to unmarshal get stranger info response: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &SendResp
+		// case "set_friend_add_request":
+		// 	logger.Debug("Received set friend add request")
+		// case "set_group_add_request":
+		// 	logger.Debug("Received set group add request")
+		// case "get_group_member_info":
+		// 	respCh, isResponse := c.responseCh[basicMsg.Echo]
+		// 	if !isResponse {
+		// 		logger.Warnf("No response channel for get group member info: %s", basicMsg.Echo)
+		// 		return
+		// 	}
+		// 	var resp T
+		// 	if err = json.Unmarshal(p, &resp); err != nil {
+		// 		logger.Errorf("Failed to unmarshal get group member info response: %v", err)
+		// 		return
+		// 	}
+		// 	respCh <- &resp
+		// default:
+		// 	logger.Warnf("Unknown action: %s", action)
+		// }
 		//其他类型
 		// delete(c.responseChans, basicMsg.Echo)
 	} else {
@@ -1271,13 +1317,15 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 		c.OutputReceivingMessage(pMsg)
 	} else if wsmsg.MessageType == "" {
 		if wsmsg.PostType == "meta_event" {
+			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
 			// 元事件
 			if wsmsg.SubType == "connect" {
 				// 刷新Bot.Uin
 				c.Uin = int64(wsmsg.SelfID)
 			}
-			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
 		} else if wsmsg.PostType == "notice" {
+			const memberNotFind = "Failed to get group member info: %v"
+			logger.Infof("收到 通知事件 消息：%s: %s", wsmsg.NoticeType, wsmsg.SubType)
 			// 通知事件
 			sync := false
 			if wsmsg.NoticeType == "group_admin" {
@@ -1303,21 +1351,59 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							c.GroupList = append(c.GroupList, ret)
 						}
 					} else {
-						logger.Warnf("Failed to get group info: %v", err)
+						logger.Warnf(memberNotFind, err)
+					}
+				} else {
+					member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
+					if err == nil {
+						c.GroupMemberJoinEvent.dispatch(c, &MemberJoinGroupEvent{
+							Group:  member.Group,
+							Member: member,
+						})
+					} else {
+						logger.Warnf(memberNotFind, err)
 					}
 				}
 			} else if wsmsg.NoticeType == "group_decrease" {
-				// 根据是否与自身有关来选择性刷新群列表
+				// 自己被踢
 				if wsmsg.SubType == "kick_me" {
-					for i, group := range c.GroupList {
-						if group.Code == wsmsg.GroupID.ToInt64() {
-							c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
-							logger.Debugf("Group %d removed from GroupList", wsmsg.GroupID.ToInt64())
-							break
-						}
+					operator, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.OperatorId.ToInt64())
+					if err == nil {
+						c.GroupLeaveEvent.dispatch(c, &GroupLeaveEvent{
+							Group:    c.FindGroupByUin(wsmsg.GroupID.ToInt64()),
+							Operator: operator,
+						})
+					} else {
+						logger.Warnf(memberNotFind, err)
 					}
+					// for i, group := range c.GroupList {
+					// 	if group.Code == wsmsg.GroupID.ToInt64() {
+					// 		c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
+					// 		logger.Debugf("Group %d removed from GroupList", wsmsg.GroupID.ToInt64())
+					// 		break
+					// 	}
+					// }
 				} else {
+					// 其他人退群/被踢
 					sync = true
+					member, err := c.FindMemberByUin(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
+					if err == nil {
+						operator := member
+						if wsmsg.OperatorId != wsmsg.UserID {
+							operator, err = c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.OperatorId.ToInt64())
+						}
+						if err == nil {
+							c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
+								Group:    member.Group,
+								Member:   member,
+								Operator: operator,
+							})
+						} else {
+							logger.Warnf(memberNotFind, err)
+						}
+					} else {
+						logger.Warnf(memberNotFind, err)
+					}
 				}
 			} else if wsmsg.NoticeType == "friend_add" {
 				// 新增好友事件
@@ -1326,8 +1412,8 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					c.NewFriendEvent.dispatch(c, &NewFriendEvent{
 						Friend: &FriendInfo{
 							Uin:      wsmsg.UserID.ToInt64(),
-							Nickname: friend.Data.Nick,
-							Remark:   friend.Data.Remark,
+							Nickname: friend.Nick,
+							Remark:   friend.Remark,
 							FaceId:   0,
 						},
 					})
@@ -1359,6 +1445,16 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				// 	"sender_id": 1143469507 // 或 "group_id"
 				// }
 			} else if wsmsg.NoticeType == "group_card" {
+				member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
+				if err == nil {
+					c.MemberCardUpdatedEvent.dispatch(c, &MemberCardUpdatedEvent{
+						Group:   member.Group,
+						OldCard: wsmsg.CardOld,
+						Member:  member,
+					})
+				} else {
+					logger.Warnf(memberNotFind, err)
+				}
 				//群名片修改（返回示例）
 				// {
 				// 	"time": 1717918741,
@@ -1399,9 +1495,9 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					// c.SyncTickerControl(1, wsmsg, refresh)
 				}
 			}
-			logger.Infof("收到 通知事件 消息：%s: %s", wsmsg.NoticeType, wsmsg.SubType)
 		} else if wsmsg.PostType == "request" {
 			const StragngerInfoErr = "Failed to get stranger info: %v"
+			logger.Infof("收到 请求事件 消息: %s: %s", wsmsg.RequestType, wsmsg.SubType)
 			// 请求事件
 			if wsmsg.RequestType == "friend" {
 				friendRequest := NewFriendRequest{
@@ -1414,7 +1510,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				}
 				info, err := c.GetStrangerInfo(friendRequest.RequesterUin)
 				if err == nil {
-					friendRequest.RequesterNick = info.Data.Nick
+					friendRequest.RequesterNick = info.Nick
 				} else {
 					logger.Warnf(StragngerInfoErr, err)
 				}
@@ -1436,7 +1532,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					}
 					user, err := c.GetStrangerInfo(groupRequest.RequesterUin)
 					if err == nil {
-						groupRequest.RequesterNick = user.Data.Nick
+						groupRequest.RequesterNick = user.Nick
 					} else {
 						logger.Warnf(StragngerInfoErr, err)
 					}
@@ -1458,7 +1554,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					}
 					user, err := c.GetStrangerInfo(groupRequest.InvitorUin)
 					if err == nil {
-						groupRequest.InvitorNick = user.Data.Nick
+						groupRequest.InvitorNick = user.Nick
 					} else {
 						logger.Warnf(StragngerInfoErr, err)
 					}
@@ -1469,8 +1565,105 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					c.GroupInvitedEvent.dispatch(c, &groupRequest)
 				}
 			}
-			logger.Infof("收到 请求事件 消息: %s: %s", wsmsg.RequestType, wsmsg.SubType)
 		}
+	}
+}
+
+func (c *QQClient) FindMemberByUin(groupCode int64, uin int64) (*GroupMemberInfo, error) {
+	group := c.FindGroupByUin(groupCode)
+	if group == nil {
+		return nil, errors.New("group not found")
+	}
+	for _, member := range group.Members {
+		if member.Uin == uin {
+			return member, nil
+		}
+	}
+	return nil, errors.New("member not found")
+}
+
+func (c *QQClient) GetGroupMemberInfo(groupCode int64, memberUin int64) (*GroupMemberInfo, error) {
+	params := map[string]any{
+		"group_id": groupCode,
+		"user_id":  memberUin,
+		"no_cache": false,
+	}
+	data, err := c.SendApi("get_group_member_info", params)
+	if err != nil {
+		return nil, err
+	}
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var member MemberData
+	var per MemberPermission
+	var sex byte
+	if err = json.Unmarshal(bytes, &member); err != nil {
+		return nil, err
+	}
+	switch member.Role {
+	case "owner":
+		per = Owner
+	case "admin":
+		per = Administrator
+	case "member":
+		per = Member
+	}
+	switch member.Sex {
+	case "male":
+		sex = 2
+	case "female":
+		sex = 1
+	case "unknown":
+		sex = 0
+	}
+	ret := GroupMemberInfo{
+		Group:           c.FindGroupByUin(groupCode),
+		Uin:             member.UserID,
+		Nickname:        member.Nickname,
+		CardName:        member.Card,
+		JoinTime:        member.JoinTime,
+		LastSpeakTime:   member.LastSentTime,
+		SpecialTitle:    member.Title,
+		ShutUpTimestamp: member.ShutUpTimestamp,
+		Permission:      per,
+		Level:           uint16(member.QQLevel),
+		Gender:          sex,
+	}
+	return &ret, nil
+}
+
+func (c *QQClient) SendApi(api string, params map[string]any, expTime ...int) (any, error) {
+	// 设置超时时间
+	var timeout int
+	if len(expTime) > 0 {
+		timeout = expTime[0]
+	} else {
+		timeout = 10
+	}
+	// 构建请求
+	echo := generateEcho(api)
+	req := map[string]any{
+		"action": api,
+		"params": params,
+		"echo":   echo,
+	}
+	// 发送请求
+	data, _ := json.Marshal(req)
+	ch := make(chan *T)
+	c.responseCh[echo] = ch
+	c.sendToWebSocketClient(c.ws, data)
+	// 等待返回
+	select {
+	case res := <-ch:
+		if res.Status == "ok" {
+			return res.Data, nil
+		} else {
+			return nil, errors.New(res.Message)
+		}
+	case <-time.After(time.Second * time.Duration(timeout)):
+		return nil, errors.New(api + " timeout")
 	}
 }
 
@@ -1624,13 +1817,14 @@ func (c *QQClient) StartWebSocketServer() {
 		})
 
 		//初始化变量
-		c.responseChans = make(map[string]chan *ResponseGroupsData)
-		c.responseGroupChans = make(map[string]chan *ResponseGroupData)
-		c.responseFriends = make(map[string]chan *ResponseFriendList)
-		c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
-		c.responseMessage = make(map[string]chan *ResponseSendMessage)
-		c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
-		c.responseStrangerInfo = make(map[string]chan *ResponseGetStrangerInfo)
+		c.responseCh = make(map[string]chan *T)
+		// c.responseChans = make(map[string]chan *ResponseGroupsData)
+		// c.responseGroupChans = make(map[string]chan *ResponseGroupData)
+		// c.responseFriends = make(map[string]chan *ResponseFriendList)
+		// c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
+		// c.responseMessage = make(map[string]chan *ResponseSendMessage)
+		// c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
+		// c.responseStrangerInfo = make(map[string]chan *ResponseGetStrangerInfo)
 
 		// 打印客户端的 headers
 		for name, values := range r.Header {
@@ -2020,49 +2214,60 @@ func (c *QQClient) ReloadFriendList() error {
 		return err
 	}
 	c.FriendList = nil
-	c.FriendList = rsp.List
+	c.FriendList = rsp
 	return nil
 }
 
-func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
-
-	echo := generateEcho("get_friend_list")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "get_friend_list",
-		"params": map[string]int64{},
-		"echo":   echo,
+func (c *QQClient) GetFriendList() ([]*FriendInfo, error) {
+	data, err := c.SendApi("get_friend_list", nil)
+	if err != nil {
+		return nil, err
 	}
+	var resp []*FriendInfo
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(t, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+	// echo := generateEcho("get_friend_list")
+	// 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "get_friend_list",
+	// 	"params": map[string]int64{},
+	// 	"echo":   echo,
+	// }
+
 	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseFriendList)
-	// 初始化 c.responseChans 映射
-	//c.responseFriends = make(map[string]chan *ResponseFriendList)
-	c.responseFriends[echo] = respChan
+	// respChan := make(chan *ResponseFriendList)
+	// c.responseFriends[echo] = respChan
 
 	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
 
 	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		delete(c.responseFriends, echo)
-		friends := make([]*FriendInfo, len(resp.Data))
-		c.debug("GetFriendList: %v", resp.Data)
-		for i, friend := range resp.Data {
-			friends[i] = &FriendInfo{
-				Uin:      friend.UserID,
-				Nickname: friend.NickName,
-				Remark:   friend.Remark,
-				FaceId:   0,
-			}
-		}
-		return &FriendListResponse{TotalCount: int32(len(friends)), List: friends}, nil
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseFriends, echo)
+	// 	friends := make([]*FriendInfo, len(resp.Data))
+	// 	c.debug("GetFriendList: %v", resp.Data)
+	// 	for i, friend := range resp.Data {
+	// 		friends[i] = &FriendInfo{
+	// 			Uin:      friend.UserID,
+	// 			Nickname: friend.NickName,
+	// 			Remark:   friend.Remark,
+	// 			FaceId:   0,
+	// 		}
+	// 	}
+	// 	return &FriendListResponse{TotalCount: int32(len(friends)), List: friends}, nil
 
-	case <-time.After(10 * time.Second):
-		delete(c.responseFriends, echo)
-		return nil, errors.New("GetFriendList: timeout waiting for response.")
-	}
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseFriends, echo)
+	// 	return nil, errors.New("GetFriendList: timeout waiting for response.")
+	// }
 }
 
 // GetFriendList
@@ -2095,45 +2300,66 @@ func (c *QQClient) GetFriendList() (*FriendListResponse, error) {
 // }
 
 func (c *QQClient) GetGroupInfo(groupCode int64) (*GroupInfo, error) {
-	echo := generateEcho("get_group_info")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "get_group_info",
-		"params": map[string]int64{
-			"group_id": groupCode,
-		},
-		"echo": echo,
+	data, err := c.SendApi("get_group_info", map[string]any{"group_id": groupCode})
+	if err != nil {
+		return nil, err
 	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseGroupData)
-	c.responseGroupChans[echo] = respChan
-
-	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
-
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		if resp.Retcode != 0 {
-			return nil, errors.New(resp.Message)
-		}
-		delete(c.responseGroupChans, echo)
-		c.debug("GetGroupInfo: %v", resp.Data)
-		group := &GroupInfo{
-			Uin:             resp.Data.GroupID,
-			Code:            resp.Data.GroupID,
-			Name:            resp.Data.GroupName,
-			GroupCreateTime: uint32(resp.Data.GroupCreateTime),
-			GroupLevel:      uint32(resp.Data.GroupLevel),
-			MemberCount:     uint16(resp.Data.MemberCount),
-			MaxMemberCount:  uint16(resp.Data.MaxMemberCount),
-		}
-		return group, nil
-	case <-time.After(10 * time.Second):
-		delete(c.responseGroupChans, echo)
-		return nil, errors.New("GetGroupInfo: timeout waiting for response.")
+	var resp GroupData
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
 	}
+	if err := json.Unmarshal(t, &resp); err != nil {
+		return nil, err
+	}
+	return &GroupInfo{
+		Uin:             resp.GroupID,
+		Code:            resp.GroupID,
+		Name:            resp.GroupName,
+		GroupCreateTime: uint32(resp.GroupCreateTime),
+		GroupLevel:      uint32(resp.GroupLevel),
+		MemberCount:     uint16(resp.MemberCount),
+		MaxMemberCount:  uint16(resp.MaxMemberCount),
+	}, nil
+	// echo := generateEcho("get_group_info")
+	// // 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "get_group_info",
+	// 	"params": map[string]int64{
+	// 		"group_id": groupCode,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseGroupData)
+	// c.responseGroupChans[echo] = respChan
+
+	// // 发送请求
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
+
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	if resp.Retcode != 0 {
+	// 		return nil, errors.New(resp.Message)
+	// 	}
+	// 	delete(c.responseGroupChans, echo)
+	// 	c.debug("GetGroupInfo: %v", resp.Data)
+	// 	group := &GroupInfo{
+	// 		Uin:             resp.Data.GroupID,
+	// 		Code:            resp.Data.GroupID,
+	// 		Name:            resp.Data.GroupName,
+	// 		GroupCreateTime: uint32(resp.Data.GroupCreateTime),
+	// 		GroupLevel:      uint32(resp.Data.GroupLevel),
+	// 		MemberCount:     uint16(resp.Data.MemberCount),
+	// 		MaxMemberCount:  uint16(resp.Data.MaxMemberCount),
+	// 	}
+	// 	return group, nil
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseGroupChans, echo)
+	// 	return nil, errors.New("GetGroupInfo: timeout waiting for response.")
+	// }
 }
 
 func (c *QQClient) SendGroupPoke(groupCode, target int64) {
@@ -2162,54 +2388,78 @@ func generateEcho(action string) string {
 }
 
 func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
-	echo := generateEcho("get_group_list")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "get_group_list",
-		"params": map[string]string{},
-		"echo":   echo,
+	data, err := c.SendApi("get_group_list", nil)
+	if err != nil {
+		return nil, err
 	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseGroupsData)
-	// 初始化 c.responseChans 映射
-	// c.responseChans = make(map[string]chan *ResponseGroupsData)
-	c.responseChans[echo] = respChan
-
-	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
-
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		// 根据resp的结构处理数据
-		//if resp.Retcode != 0 || resp.Status != "ok" {
-		//	return nil, fmt.Errorf("error response from server: %s", resp.Message)
-		//}
-
-		// 将ResponseGroupsData转换为GroupInfo列表
-		delete(c.responseChans, echo)
-		groups := make([]*GroupInfo, len(resp.Data))
-		c.debug("GetGroupList: %v", resp.Data)
-		for i, groupData := range resp.Data {
-			groups[i] = &GroupInfo{
-				Uin:             groupData.GroupID,
-				Code:            groupData.GroupID,
-				Name:            groupData.GroupName,
-				GroupCreateTime: uint32(groupData.GroupCreateTime),
-				GroupLevel:      uint32(groupData.GroupLevel),
-				MemberCount:     uint16(groupData.MemberCount),
-				MaxMemberCount:  uint16(groupData.MaxMemberCount),
-				// TODO: add more fields if necessary, like Members, etc.
-			}
+	var resp []GroupData
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(t, &resp); err != nil {
+		return nil, err
+	}
+	groups := make([]*GroupInfo, len(resp))
+	for i, group := range resp {
+		groups[i] = &GroupInfo{
+			Uin:             group.GroupID,
+			Code:            group.GroupID,
+			Name:            group.GroupName,
+			GroupCreateTime: uint32(group.GroupCreateTime),
+			GroupLevel:      uint32(group.GroupLevel),
+			MemberCount:     uint16(group.MemberCount),
+			MaxMemberCount:  uint16(group.MaxMemberCount),
 		}
-
-		return groups, nil
-
-	case <-time.After(10 * time.Second):
-		delete(c.responseChans, echo)
-		return nil, errors.New("GetGroupList: timeout waiting for response.")
 	}
+	return groups, nil
+	// echo := generateEcho("get_group_list")
+	// // 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "get_group_list",
+	// 	"params": map[string]string{},
+	// 	"echo":   echo,
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseGroupsData)
+	// // 初始化 c.responseChans 映射
+	// c.responseChans[echo] = respChan
+
+	// // 发送请求
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
+
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	// 根据resp的结构处理数据
+	// 	//if resp.Retcode != 0 || resp.Status != "ok" {
+	// 	//	return nil, fmt.Errorf("error response from server: %s", resp.Message)
+	// 	//}
+
+	// 	// 将ResponseGroupsData转换为GroupInfo列表
+	// 	delete(c.responseChans, echo)
+	// 	groups := make([]*GroupInfo, len(resp.Data))
+	// 	c.debug("GetGroupList: %v", resp.Data)
+	// 	for i, groupData := range resp.Data {
+	// 		groups[i] = &GroupInfo{
+	// 			Uin:             groupData.GroupID,
+	// 			Code:            groupData.GroupID,
+	// 			Name:            groupData.GroupName,
+	// 			GroupCreateTime: uint32(groupData.GroupCreateTime),
+	// 			GroupLevel:      uint32(groupData.GroupLevel),
+	// 			MemberCount:     uint16(groupData.MemberCount),
+	// 			MaxMemberCount:  uint16(groupData.MaxMemberCount),
+	// 			// TODO: add more fields if necessary, like Members, etc.
+	// 		}
+	// 	}
+
+	// 	return groups, nil
+
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseChans, echo)
+	// 	return nil, errors.New("GetGroupList: timeout waiting for response.")
+	// }
 
 	// TODO:
 	// 返回GroupInfo结构体列表
@@ -2295,62 +2545,96 @@ func (c *QQClient) GetGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error)
 }
 
 func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInterner) ([]*GroupMemberInfo, error) {
-	// var nextUin int64
-	//var list []*GroupMemberInfo
-
-	echo := generateEcho("get_group_member_list")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "get_group_member_list",
-		"params": map[string]int64{
-			"group_id": group.Uin,
-		},
-		"echo": echo,
+	data, err := c.SendApi("get_group_member_list", map[string]any{
+		"group_id": group.Uin,
+	})
+	if err != nil {
+		return nil, err
 	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseGroupMemberData)
-	// 初始化 c.responseChans 映射
-	// c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
-	c.responseMembers[echo] = respChan
-
-	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
-
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		delete(c.responseMembers, echo)
-		members := make([]*GroupMemberInfo, len(resp.Data))
-		c.debug("GetGroupMembers: %v", resp.Data)
-		for i, memberData := range resp.Data {
-			var permission MemberPermission
-			if memberData.Role == "owner" {
-				permission = 1
-			} else if memberData.Role == "admin" {
-				permission = 2
-			} else if memberData.Role == "member" {
-				permission = 3
-			}
-			members[i] = &GroupMemberInfo{
-				Group:           group,
-				Uin:             memberData.UserID,
-				Nickname:        memberData.Nickname,
-				CardName:        memberData.Card,
-				JoinTime:        memberData.JoinTime,
-				LastSpeakTime:   memberData.LastSentTime,
-				SpecialTitle:    memberData.Title,
-				ShutUpTimestamp: memberData.ShutUpTimestamp,
-				Permission:      permission,
-			}
+	var resp []MemberData
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(t, &resp); err != nil {
+		return nil, err
+	}
+	members := make([]*GroupMemberInfo, len(resp))
+	for i, member := range resp {
+		var permission MemberPermission
+		if member.Role == "owner" {
+			permission = Owner
+		} else if member.Role == "admin" {
+			permission = Administrator
+		} else if member.Role == "member" {
+			permission = Member
 		}
-
-		return members, nil
-
-	case <-time.After(10 * time.Second):
-		delete(c.responseMembers, echo)
-		return nil, errors.New("GetGroupMembers: timeout waiting for response.")
+		members[i] = &GroupMemberInfo{
+			Group:           group,
+			Uin:             member.UserID,
+			Nickname:        member.Nickname,
+			CardName:        member.Card,
+			JoinTime:        member.JoinTime,
+			LastSpeakTime:   member.LastSentTime,
+			SpecialTitle:    member.Title,
+			ShutUpTimestamp: member.ShutUpTimestamp,
+			Permission:      permission,
+		}
 	}
+	return members, nil
+	// list := make([]*GroupMemberInfo, 0)
+	// echo := generateEcho("get_group_member_list")
+	// // 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "get_group_member_list",
+	// 	"params": map[string]int64{
+	// 		"group_id": group.Uin,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseGroupMemberData)
+	// // 初始化 c.responseChans 映射
+	// c.responseMembers[echo] = respChan
+
+	// // 发送请求
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
+
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseMembers, echo)
+	// 	members := make([]*GroupMemberInfo, len(resp.Data))
+	// 	c.debug("GetGroupMembers: %v", resp.Data)
+	// 	for i, memberData := range resp.Data {
+	// 		var permission MemberPermission
+	// 		if memberData.Role == "owner" {
+	// 			permission = 1
+	// 		} else if memberData.Role == "admin" {
+	// 			permission = 2
+	// 		} else if memberData.Role == "member" {
+	// 			permission = 3
+	// 		}
+	// 		members[i] = &GroupMemberInfo{
+	// 			Group:           group,
+	// 			Uin:             memberData.UserID,
+	// 			Nickname:        memberData.Nickname,
+	// 			CardName:        memberData.Card,
+	// 			JoinTime:        memberData.JoinTime,
+	// 			LastSpeakTime:   memberData.LastSentTime,
+	// 			SpecialTitle:    memberData.Title,
+	// 			ShutUpTimestamp: memberData.ShutUpTimestamp,
+	// 			Permission:      permission,
+	// 		}
+	// 	}
+
+	// 	return members, nil
+
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseMembers, echo)
+	// 	return nil, errors.New("GetGroupMembers: timeout waiting for response.")
+	// }
 
 	// for {
 	// 	data, err := c.sendAndWait(c.buildGroupMemberListRequestPacket(group.Uin, group.Code, nextUin))
@@ -2457,42 +2741,57 @@ func (c *QQClient) SolveGroupJoinRequest(i any, accept, block bool, reason strin
 		subType = "invite"
 		Req = req
 	}
-	echo := generateEcho("set_group_add_request")
-	// 构建请求
-	newReq := map[string]interface{}{
-		"action": "set_group_add_request",
-		"params": map[string]interface{}{
-			"sub_type": subType,
-			"approve":  accept,
-			"reason":   reason,
-		},
-		"echo": echo,
+	// echo := generateEcho("set_group_add_request")
+	// // 构建请求
+	// newReq := map[string]interface{}{
+	// 	"action": "set_group_add_request",
+	// 	"params": map[string]interface{}{
+	// 		"sub_type": subType,
+	// 		"approve":  accept,
+	// 		"reason":   reason,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// if _, ok := Req.(*UserJoinGroupRequest); ok {
+	// 	newReq["params"].(map[string]interface{})["flag"] = Req.(*UserJoinGroupRequest).Flag
+	// } else if _, ok := Req.(*GroupInvitedRequest); ok {
+	// 	newReq["params"].(map[string]interface{})["flag"] = Req.(*GroupInvitedRequest).Flag
+	// }
+	// logger.Debugf("加群回复构建完成：%s", newReq)
+	// // 发送请求
+	// data, _ := json.Marshal(newReq)
+	// c.sendToWebSocketClient(c.ws, data)
+	params := map[string]any{
+		"sub_type": subType,
+		"approve":  accept,
+		"reason":   reason,
 	}
 	if _, ok := Req.(*UserJoinGroupRequest); ok {
-		newReq["params"].(map[string]interface{})["flag"] = Req.(*UserJoinGroupRequest).Flag
+		params["flag"] = Req.(*UserJoinGroupRequest).Flag
 	} else if _, ok := Req.(*GroupInvitedRequest); ok {
-		newReq["params"].(map[string]interface{})["flag"] = Req.(*GroupInvitedRequest).Flag
+		params["flag"] = Req.(*GroupInvitedRequest).Flag
 	}
-	logger.Debugf("加群回复构建完成：%s", newReq)
-	// 发送请求
-	data, _ := json.Marshal(newReq)
-	c.sendToWebSocketClient(c.ws, data)
+	_, _ = c.SendApi("set_group_add_request", map[string]any{})
 }
 
 func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {
-	echo := generateEcho("set_friend_add_request")
-	// 构建请求
-	newReq := map[string]interface{}{
-		"action": "set_friend_add_request",
-		"params": map[string]interface{}{
-			"flag":    req.Flag,
-			"approve": accept,
-		},
-		"echo": echo,
-	}
-	// 发送请求
-	data, _ := json.Marshal(newReq)
-	c.sendToWebSocketClient(c.ws, data)
+	_, _ = c.SendApi("set_friend_add_request", map[string]any{
+		"flag":    req.Flag,
+		"approve": accept,
+	})
+	// echo := generateEcho("set_friend_add_request")
+	// // 构建请求
+	// newReq := map[string]interface{}{
+	// 	"action": "set_friend_add_request",
+	// 	"params": map[string]interface{}{
+	// 		"flag":    req.Flag,
+	// 		"approve": accept,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// // 发送请求
+	// data, _ := json.Marshal(newReq)
+	// c.sendToWebSocketClient(c.ws, data)
 }
 
 // func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {
@@ -2555,50 +2854,59 @@ func (c *QQClient) groupMute(groupCode, memberUin int64, time uint32) {
 }
 
 func (c *QQClient) quitGroup(group *GroupInfo) {
-	//_, _ = c.sendAndWait(c.buildQuitGroupPacket(groupCode))
-	//group = c.FindGroup(group.Code)
-	echo := generateEcho("set_group_leave")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "set_group_leave",
-		"params": map[string]interface{}{
-			"group_id":   group.Code,
-			"is_dismiss": false,
-			// "group_id":   strconv.FormatInt(group.Code, 10),
-			// "is_dismiss": strconv.FormatBool(false),
-		},
-		"echo": echo,
+	_, err := c.SendApi("set_group_leave", map[string]any{
+		"group_id":   group.Code,
+		"is_dismiss": false,
+	})
+	if err != nil {
+		logger.Error(err)
+		return
 	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseSetGroupLeave)
-	// 初始化 c.responseChans 映射
-	//c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
-	c.responseSetLeave[echo] = respChan
-	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		delete(c.responseSetLeave, echo)
-		if resp.Retcode == 0 {
-			sort.Slice(c.GroupList, func(i, j int) bool {
-				return c.GroupList[i].Code < c.GroupList[j].Code
-			})
-			i := sort.Search(len(c.GroupList), func(i int) bool {
-				return c.GroupList[i].Code >= group.Code
-			})
-			if i < len(c.GroupList) && c.GroupList[i].Code == group.Code {
-				c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
-			}
-			logger.Infof("退出群组成功")
-		} else {
-			logger.Errorf("退出群组失败: %v", resp.Message)
-		}
-	case <-time.After(10 * time.Second):
-		delete(c.responseSetLeave, echo)
-		logger.Errorf("退出群组超时")
-	}
+	c.GroupLeaveEvent.dispatch(c, &GroupLeaveEvent{
+		Group:    group,
+		Operator: nil,
+	})
+	// _, pkt := c.buildSetGroupLeavePacket(group.Code, false)
+	// _ = c.sendPacket(pkt)
+	// echo := generateEcho("set_group_leave")
+	// // 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "set_group_leave",
+	// 	"params": map[string]interface{}{
+	// 		"group_id":   group.Code,
+	// 		"is_dismiss": false,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseSetGroupLeave)
+	// // 初始化 c.responseChans 映射
+	// c.responseSetLeave[echo] = respChan
+	// // 发送请求
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseSetLeave, echo)
+	// 	if resp.Retcode == 0 {
+	// 		sort.Slice(c.GroupList, func(i, j int) bool {
+	// 			return c.GroupList[i].Code < c.GroupList[j].Code
+	// 		})
+	// 		i := sort.Search(len(c.GroupList), func(i int) bool {
+	// 			return c.GroupList[i].Code >= group.Code
+	// 		})
+	// 		if i < len(c.GroupList) && c.GroupList[i].Code == group.Code {
+	// 			c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
+	// 		}
+	// 		logger.Infof("退出群组成功")
+	// 	} else {
+	// 		logger.Errorf("退出群组失败: %v", resp.Message)
+	// 	}
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseSetLeave, echo)
+	// 	logger.Errorf("退出群组超时")
+	// }
 }
 
 func (c *QQClient) KickGroupMembers(groupCode int64, msg string, block bool, memberUins ...int64) {
@@ -2695,35 +3003,51 @@ func (c *QQClient) doHeartbeat() {
 	c.heartbeatEnabled = false
 }
 
-func (c *QQClient) GetStrangerInfo(uid int64) (ResponseGetStrangerInfo, error) {
-	echo := generateEcho("get_stranger_info")
-	// 构建请求
-	req := map[string]interface{}{
-		"action": "get_stranger_info",
-		"params": map[string]interface{}{
-			"user_id":  uid,
-			"no_cache": false,
-		},
-		"echo": echo,
+func (c *QQClient) GetStrangerInfo(uid int64) (StrangerInfo, error) {
+	data, err := c.SendApi("get_stranger_info", map[string]any{
+		"user_id":  uid,
+		"no_cache": false,
+	})
+	if err != nil {
+		return StrangerInfo{}, err
 	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseGetStrangerInfo)
-	c.responseStrangerInfo[echo] = respChan
-	// 发送请求
-	data, _ := json.Marshal(req)
-	c.sendToWebSocketClient(c.ws, data)
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		delete(c.responseStrangerInfo, echo)
-		if resp.Retcode == 0 {
-			logger.Debug("GetStrangerInfo Success")
-			return *resp, nil
-		} else {
-			return ResponseGetStrangerInfo{}, errors.New(resp.Message)
-		}
-	case <-time.After(10 * time.Second):
-		delete(c.responseStrangerInfo, echo)
-		return ResponseGetStrangerInfo{}, errors.New("get stranger info timeout")
+	t, err := json.Marshal(data)
+	if err != nil {
+		return StrangerInfo{}, err
 	}
+	var resp StrangerInfo
+	if err = json.Unmarshal(t, &resp); err != nil {
+		return StrangerInfo{}, err
+	}
+	return resp, nil
+	// echo := generateEcho("get_stranger_info")
+	// // 构建请求
+	// req := map[string]interface{}{
+	// 	"action": "get_stranger_info",
+	// 	"params": map[string]interface{}{
+	// 		"user_id":  uid,
+	// 		"no_cache": false,
+	// 	},
+	// 	"echo": echo,
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseGetStrangerInfo)
+	// c.responseStrangerInfo[echo] = respChan
+	// // 发送请求
+	// data, _ := json.Marshal(req)
+	// c.sendToWebSocketClient(c.ws, data)
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseStrangerInfo, echo)
+	// 	if resp.Retcode == 0 {
+	// 		logger.Debug("GetStrangerInfo Success")
+	// 		return *resp, nil
+	// 	} else {
+	// 		return ResponseGetStrangerInfo{}, errors.New(resp.Message)
+	// 	}
+	// case <-time.After(10 * time.Second):
+	// 	delete(c.responseStrangerInfo, echo)
+	// 	return ResponseGetStrangerInfo{}, errors.New("get stranger info timeout")
+	// }
 }

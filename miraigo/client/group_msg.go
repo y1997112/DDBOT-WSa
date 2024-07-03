@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"math"
 	"math/rand"
 	"regexp"
@@ -109,72 +108,107 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
 		return nil, errors.New("消息或图片长度超限，取消本次发送")
 	}
-	// 构造消息
-	echo := generateEcho("send_group_msg")
-	msg := WebSocketActionMessage{
-		Action: "send_group_msg",
-		Params: WebSocketParams{
-			GroupID: finalGroupID,
-			Message: newstr,
-		},
-		Echo: echo,
-	}
-	data, err := json.Marshal(msg)
-	if err != nil {
-		//fmt.Printf("Failed to marshal message to JSON: %v", err)
-		//logger.Errorf("Failed to marshal message to JSON: %v", err)
-		return nil, errors.New(fmt.Sprintf("Failed to marshal message to JSON: %v", err))
-	}
-	// 创建响应通道并添加到映射中
-	respChan := make(chan *ResponseSendMessage)
-	// 初始化 c.responseChans 映射
-	// c.responseMessage = make(map[string]chan *ResponseSendMessage)
-	c.responseMessage[echo] = respChan
-	//fmt.Printf("发群信息action给ws客户端: %v", msg)
+	// // 构造消息
+	// echo := generateEcho("send_group_msg")
+	// msg := WebSocketActionMessage{
+	// 	Action: "send_group_msg",
+	// 	Params: WebSocketParams{
+	// 		GroupID: finalGroupID,
+	// 		Message: newstr,
+	// 	},
+	// 	Echo: echo,
+	// }
+	// data, err := json.Marshal(msg)
+	// if err != nil {
+	// 	return nil, errors.New(fmt.Sprintf("Failed to marshal message to JSON: %v", err))
+	// }
+	// // 创建响应通道并添加到映射中
+	// respChan := make(chan *ResponseSendMessage)
+	// c.responseMessage[echo] = respChan
 	expTime := math.Ceil(float64(totalLen) / 131072)
 	if totalLen < 1024 && imgCount > 0 {
 		expTime = 90
 	}
 	expTime += 6
 	tmpMsg := ""
-	if len(msg.Params.Message) > 75 {
-		tmpMsg = msg.Params.Message[:75] + "..."
+	if len(newstr) > 75 {
+		tmpMsg = newstr[:75] + "..."
 	} else {
-		tmpMsg = msg.Params.Message
+		tmpMsg = newstr
 	}
 	logger.Infof("发送 群消息 给 (%v) 预期耗时 %.0fs: %s", finalGroupID, expTime, tmpMsg)
-	c.sendToWebSocketClient(c.ws, data)
-
-	// 等待响应或超时
-	select {
-	case resp := <-respChan:
-		delete(c.responseMessage, echo)
-		if resp.Retcode == 0 {
-			retMsg := &message.GroupMessage{
-				Id:         resp.Data.MessageID,
-				InternalId: int32(rand.Uint32()),
-				GroupCode:  groupCode,
-				GroupName:  "",
-				Sender: &message.Sender{
-					Uin:      c.Uin,
-					Nickname: c.Nickname,
-					IsFriend: true,
-				},
-				Time:     int32(time.Now().Unix()),
-				Elements: m.Elements,
-			}
-			if c.GroupList != nil {
-				retMsg.GroupName = c.FindGroupByUin(groupCode).Name
-			}
-			return retMsg, nil
-		} else {
-			return nil, errors.New(fmt.Sprintf("Failed to send group message: %v", resp.Message))
-		}
-		//return c.sendGroupMessage(groupCode, false, m, msgID)
-	case <-time.After(time.Duration(expTime) * time.Second):
-		delete(c.responseMessage, echo)
-		return nil, errors.New("Send group message timeout")
+	//c.sendToWebSocketClient(c.ws, data)
+	data, err := c.SendApi("send_group_msg", map[string]any{
+		"group_id": finalGroupID,
+		"message":  newstr,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "发送群消息失败")
 	}
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "解析群消息返回数据失败")
+	}
+	var resp ResponseSendMessage
+	err = json.Unmarshal(t, &resp.Data)
+	if err != nil {
+		return nil, errors.Wrap(err, "解析群消息返回数据失败")
+	}
+	retMsg := message.GroupMessage{
+		Id:         resp.Data.MessageID,
+		InternalId: int32(rand.Uint32()),
+		GroupCode:  groupCode,
+		GroupName:  "",
+		Sender: &message.Sender{
+			Uin:      c.Uin,
+			Nickname: c.Nickname,
+			IsFriend: true,
+		},
+		Time:     int32(time.Now().Unix()),
+		Elements: m.Elements,
+	}
+	if c.GroupList != nil {
+		retMsg.GroupName = c.FindGroupByUin(groupCode).Name
+	}
+	return &retMsg, nil
+	// // 发送消息
+	// seq, pkt := c.buildGroupSendingPacket(groupCode, mr, 1, 0, 0, forward, m.Elements)
+	// _ = c.sendPacket(pkt)
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseMessage, echo)
+	// 	if resp.Retcode == 0 {
+
+	// // 等待响应或超时
+	// select {
+	// case resp := <-respChan:
+	// 	delete(c.responseMessage, echo)
+	// 	if resp.Retcode == 0 {
+	// 		retMsg := &message.GroupMessage{
+	// 			Id:         resp.Data.MessageID,
+	// 			InternalId: int32(rand.Uint32()),
+	// 			GroupCode:  groupCode,
+	// 			GroupName:  "",
+	// 			Sender: &message.Sender{
+	// 				Uin:      c.Uin,
+	// 				Nickname: c.Nickname,
+	// 				IsFriend: true,
+	// 			},
+	// 			Time:     int32(time.Now().Unix()),
+	// 			Elements: m.Elements,
+	// 		}
+	// 		if c.GroupList != nil {
+	// 			retMsg.GroupName = c.FindGroupByUin(groupCode).Name
+	// 		}
+	// 		return retMsg, nil
+	// 	} else {
+	// 		return nil, errors.New(fmt.Sprintf("Failed to send group message: %v", resp.Message))
+	// 	}
+	// case <-time.After(time.Duration(expTime) * time.Second):
+	// 	delete(c.responseMessage, echo)
+	// 	return nil, errors.New("Send group message timeout")
+	// }
 }
 
 // SendGroupForwardMessage 发送群合并转发消息
