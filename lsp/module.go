@@ -551,6 +551,31 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		if err := l.LspStateManager.Muted(event.GroupCode, event.TargetUin, event.Time); err != nil {
 			logger.Errorf("Muted failed %v", err)
 		}
+		if event.TargetUin == localutils.GetBot().GetUin() {
+			data := map[string]interface{}{
+				"group_code":    event.GroupCode,
+				"member_code":   event.TargetUin,
+				"operator_code": event.OperatorUin,
+				"mute_duration": event.Time,
+			}
+			if gi := localutils.GetBot().FindGroup(event.GroupCode); gi != nil {
+				data["group_name"] = gi.Name
+				if fi := gi.FindMember(event.TargetUin); fi != nil {
+					data["member_name"] = fi.DisplayName()
+				}
+				if fi := gi.FindMember(event.OperatorUin); fi != nil {
+					data["operator_name"] = fi.DisplayName()
+				}
+			}
+			m, _ := template.LoadAndExec("trigger.group.bot_mute.tmpl", data)
+			if m != nil {
+				if admin := l.PermissionStateManager.ListAdmin(); len(admin) > 0 {
+					l.SendMsg(m, mmsg.NewPrivateTarget(admin[0]))
+				} else {
+					logger.Warn("未设置管理员，取消提示")
+				}
+			}
+		}
 	})
 
 	bot.PrivateMessageEvent.Subscribe(func(qqClient *client.QQClient, msg *message.PrivateMessage) {
@@ -797,24 +822,24 @@ func (l *Lsp) sendGroupMessage(groupCode int64, msg *message.SendingMessage, rec
 			}
 		}
 	}()
-	// if bot.Instance == nil || !bot.Instance.Online.Load() {
-	// 	return &message.GroupMessage{Id: -1, Elements: msg.Elements}
-	// }
-	// if l.LspStateManager.IsMuted(groupCode, bot.Instance.Uin) {
-	// 	logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
-	// 		WithFields(localutils.GroupLogFields(groupCode)).
-	// 		Debug("BOT被禁言无法发送群消息")
-	// 	return &message.GroupMessage{Id: -1, Elements: msg.Elements}
-	// }
+	if bot.Instance == nil || !bot.Instance.Online.Load() {
+		return &message.GroupMessage{Id: -1, Elements: msg.Elements}
+	}
+	if l.LspStateManager.IsMuted(groupCode, bot.Instance.Uin) {
+		logger.WithField("content", msgstringer.MsgToString(msg.Elements)).
+			WithFields(localutils.GroupLogFields(groupCode)).
+			Debug("BOT被禁言无法发送群消息")
+		return &message.GroupMessage{Id: -1, Elements: msg.Elements}
+	}
 	if msg == nil {
-		//logger.Debug("消息为空，返回")
+		logger.Debug("消息为空，返回")
 		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with nil group message")
 		return &message.GroupMessage{Id: -1}
 	}
 	//logger.Debugf("发送群消息：%v\n", msgstringer.MsgToString(msg.Elements))
-	// msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
-	// 	return element != nil
-	// })
+	msg.Elements = localutils.MessageFilter(msg.Elements, func(element message.IMessageElement) bool {
+		return element != nil
+	})
 	if len(msg.Elements) == 0 {
 		//logger.Debug("消息元素为空，返回")
 		logger.WithFields(localutils.GroupLogFields(groupCode)).Debug("send with empty group message")

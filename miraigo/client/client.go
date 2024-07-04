@@ -560,10 +560,10 @@ type WebSocketMessage struct {
 	MetaEventType string       `json:"meta_event_type"`
 	NoticeType    string       `json:"notice_type"`
 	OperatorId    DynamicInt64 `json:"operator_id"`
-	// Status        struct {
-	// 	Online bool `json:"online"`
-	// 	Good   bool `json:"good"`
-	// } `json:"status"`
+	Status        struct {
+		Online bool `json:"online"`
+		Good   bool `json:"good"`
+	} `json:"status"`
 	RequestType string       `json:"request_type"`
 	Comment     string       `json:"comment"`
 	Flag        string       `json:"flag"`
@@ -1105,9 +1105,14 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 		if wsmsg.PostType == "meta_event" {
 			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
 			// 元事件
-			if wsmsg.SubType == "connect" {
-				// 刷新Bot.Uin
+			if wsmsg.MetaEventType == "lifecycle" {
+				// 刷新BOT状态
 				c.Uin = int64(wsmsg.SelfID)
+				c.Online.Store(true)
+				c.alive = true
+			} else if wsmsg.MetaEventType == "heartbeat" {
+				c.Online.Store(wsmsg.Status.Online)
+				c.alive = wsmsg.Status.Good
 			}
 		} else if wsmsg.PostType == "notice" {
 			const memberNotFind = "Failed to get group member info: %v"
@@ -1241,42 +1246,39 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				} else {
 					logger.Warnf(memberNotFind, err)
 				}
-				//群名片修改（返回示例）
-				// {
-				// 	"time": 1717918741,
-				// 	"self_id": 1143469507,
-				// 	"post_type": "notice",
-				// 	"group_id": 615231979,
-				// 	"user_id": 1143469507,
-				// 	"notice_type": "group_card",
-				// 	"card_new": "吔屎大将军",
-				// 	"card_old": "吔屎大将军1"
-				// }
 			} else if wsmsg.NoticeType == "group_ban" {
-				c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
-					GroupCode:   wsmsg.GroupID.ToInt64(),
-					OperatorUin: wsmsg.OperatorId.ToInt64(),
-					TargetUin:   wsmsg.UserID.ToInt64(),
-					Time:        wsmsg.Duration,
-				})
-				//群禁言事件（返回示例）
-				// {
-				// 	"time": 1719116197,
-				// 	"self_id": 1143469507,
-				// 	"post_type": "notice",
-				// 	"group_id": 864046682,
-				// 	"user_id": 0,
-				// 	"notice_type": "group_ban", // 解除 "lift_ban"
-				// 	"operator_id": 313575803,
-				// 	"duration": -1,
-				// 	"sub_type": "ban"
-				// }
+				skip := false
+				var member *GroupMemberInfo
+				if wsmsg.UserID != 0 {
+					member = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
+				} else {
+					member = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(c.Uin)
+					if member.Permission == Member {
+						wsmsg.UserID = DynamicInt64(c.Uin)
+					} else {
+						skip = true
+					}
+				}
+				if !skip {
+					if wsmsg.Duration > 0 {
+						member.ShutUpTimestamp = time.Now().Add(time.Second * time.Duration(wsmsg.Duration)).Unix()
+					} else {
+						member.ShutUpTimestamp = 0
+					}
+					if wsmsg.Duration == -1 {
+						wsmsg.Duration = 268435455
+					}
+					c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
+						GroupCode:   wsmsg.GroupID.ToInt64(),
+						OperatorUin: wsmsg.OperatorId.ToInt64(),
+						TargetUin:   wsmsg.UserID.ToInt64(),
+						Time:        wsmsg.Duration,
+					})
+				}
 			}
 			// 选择性执行上述结果
 			if sync {
 				if c.GroupList != nil {
-					// 调试：暂时强制刷新（refresh=true）
-					//refresh = true
 					c.SyncGroupMembers(wsmsg.GroupID)
 					// c.SyncTickerControl(1, wsmsg, refresh)
 				}
