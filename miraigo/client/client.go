@@ -340,15 +340,6 @@ type CardMessage struct {
 	View   string `json:"view"`
 }
 
-// // 返回结构
-// type T struct {
-// 	Status  string `json:"status"`
-// 	RetCode int    `json:"retcode"`
-// 	Message string `json:"message"`
-// 	Wording string `json:"wording"`
-// 	Data    any    `json:"data"`
-// }
-
 // 返回结构
 type T struct {
 	Status  string `json:"status"`
@@ -870,451 +861,246 @@ func (c *QQClient) handleResponse(p []byte) {
 }
 
 func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
-	var err error
 	// 处理解析后的消息
-	if wsmsg.MessageType == "group" {
-		// var groupName string
-		// if len(c.GroupList) > 0 {
-		// 	groupName = c.FindGroupByUin(wsmsg.GroupID.ToInt64()).Name
+	if wsmsg.MessageType == "group" || wsmsg.MessageType == "private" {
+		if wsmsg.MessageType == "group" {
+			wsMsg := &message.GroupMessage{
+				Id:        int32(wsmsg.MessageID),
+				GroupCode: wsmsg.GroupID.ToInt64(),
+				GroupName: "",
+				// GroupName: groupName,
+				Sender: &message.Sender{
+					Uin:      wsmsg.Sender.UserID.ToInt64(),
+					Nickname: wsmsg.Sender.Nickname,
+					CardName: wsmsg.Sender.Card,
+					IsFriend: false,
+				},
+				Time:           int32(wsmsg.Time),
+				OriginalObject: nil,
+			}
+			c.ChatMsgHandler(wsmsg, wsMsg, nil)
+		} else if wsmsg.MessageType == "private" {
+			wsMsg := &message.PrivateMessage{
+				Id:         int32(wsmsg.MessageID),
+				InternalId: 0,
+				Self:       c.Uin,
+				Target:     wsmsg.Sender.UserID.ToInt64(),
+				Time:       int32(wsmsg.Time),
+				Sender: &message.Sender{
+					Uin:      wsmsg.Sender.UserID.ToInt64(),
+					Nickname: wsmsg.Sender.Nickname,
+					CardName: "", // Private message might not have a Card
+					IsFriend: wsmsg.SubType == "friend",
+				},
+			}
+			// 拿到发送自身发送的消息时修改为正确目标
+			if wsmsg.PostType == "message_sent" {
+				wsMsg.Target = int64(wsmsg.TargetID)
+			}
+			c.ChatMsgHandler(wsmsg, nil, wsMsg)
+		}
+		// if MessageContent, ok := wsmsg.MessageContent.(string); ok {
+		// 	// 替换字符串中的"\/"为"/"
+		// 	MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
+		// 	// 使用extractAtElements函数从wsmsg.Message中提取At元素
+		// 	atElements := extractAtElements(MessageContent)
+		// 	// 将提取的At元素和文本元素都添加到g.Elements
+		// 	pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: MessageContent})
+		// 	for _, elem := range atElements {
+		// 		pMsg.Elements = append(pMsg.Elements, elem)
+		// 	}
+		// } else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
+		// 	for _, contentInterface := range contentArray {
+		// 		contentMap, ok := contentInterface.(map[string]interface{})
+		// 		if !ok {
+		// 			continue
+		// 		}
+
+		// 		contentType, ok := contentMap["type"].(string)
+		// 		if !ok {
+		// 			continue
+		// 		}
+
+		// 		switch contentType {
+		// 		case "text":
+		// 			text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
+		// 			if ok {
+		// 				// 替换字符串中的"\/"为"/"
+		// 				text = strings.Replace(text, "\\/", "/", -1)
+		// 				pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+		// 			}
+		// 		case "at":
+		// 			if data, ok := contentMap["data"].(map[string]interface{}); ok {
+		// 				var qq int64
+		// 				if qqData, ok := data["qq"].(string); ok {
+		// 					if qqData != "all" {
+		// 						qq, err = strconv.ParseInt(qqData, 10, 64)
+		// 						if err != nil {
+		// 							logger.Errorf("Failed to parse qq: %v", err)
+		// 							continue
+		// 						}
+		// 					} else {
+		// 						qq = 0
+		// 					}
+		// 				} else if qqData, ok := data["qq"].(int64); ok {
+		// 					qq = qqData
+		// 				}
+		// 				//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
+		// 				pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
+		// 			}
+		// 		case "face":
+		// 			faceID := 0
+		// 			if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+		// 				faceID, _ = strconv.Atoi(face)
+		// 			} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+		// 				faceID = int(face)
+		// 			}
+		// 			pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+		// 		case "mface":
+		// 			if mface, ok := contentMap["data"].(map[string]interface{}); ok {
+		// 				tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
+		// 				pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
+		// 					Name:       mface["summary"].(string),
+		// 					FaceId:     []byte(mface["emoji_id"].(string)),
+		// 					TabId:      int32(tabId),
+		// 					MediaType:  2,
+		// 					EncryptKey: []byte(mface["key"].(string)),
+		// 				})
+		// 			}
+		// 		case "image":
+		// 			image, ok := contentMap["data"].(map[string]interface{})
+		// 			if ok {
+		// 				size := 0
+		// 				if tmp, ok := image["file_size"].(string); ok {
+		// 					size, err = strconv.Atoi(tmp)
+		// 				}
+		// 				if contentMap["subType"] == nil {
+		// 					pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
+		// 						Size: int32(size),
+		// 						Url:  image["url"].(string),
+		// 					})
+		// 				} else {
+		// 					if contentMap["subType"].(float64) == 1.0 {
+		// 						pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
+		// 							Name:       "[图片表情]",
+		// 							FaceId:     []byte(image["file"].(string)),
+		// 							SubType:    3,
+		// 							TabId:      0,
+		// 							MediaType:  2,
+		// 							EncryptKey: []byte("0"),
+		// 						})
+		// 					} else {
+		// 						pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
+		// 							Size: int32(size),
+		// 							Url:  image["url"].(string),
+		// 						})
+		// 					}
+		// 				}
+		// 			}
+		// 		case "reply":
+		// 			replySeq := 0
+		// 			if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+		// 				replySeq, _ = strconv.Atoi(replyID)
+		// 			} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+		// 				replySeq = int(replyID)
+		// 			}
+		// 			pMsg.Elements = append(pMsg.Elements, &message.ReplyElement{
+		// 				ReplySeq: int32(replySeq),
+		// 				Sender:   pMsg.Sender.Uin,
+		// 				Time:     pMsg.Time,
+		// 				Elements: pMsg.Elements,
+		// 			})
+		// 		case "record":
+		// 			record, ok := contentMap["data"].(map[string]interface{})
+		// 			if ok {
+		// 				fileSize := 0
+		// 				filePath := ""
+		// 				if size, ok := record["file_size"].(string); ok {
+		// 					fileSize, _ = strconv.Atoi(size)
+		// 				}
+		// 				if path, ok := record["path"].(string); ok {
+		// 					filePath = path
+		// 				}
+		// 				pMsg.Elements = append(pMsg.Elements, &message.VoiceElement{
+		// 					Name: record["file"].(string),
+		// 					Url:  filePath,
+		// 					Size: int32(fileSize),
+		// 				})
+		// 			}
+		// 		case "json":
+		// 			// 处理json消息
+		// 			if card, ok := contentMap["data"].(map[string]interface{}); ok {
+		// 				switch card["data"].(type) {
+		// 				case string:
+		// 					var j CardMessage
+		// 					err := json.Unmarshal([]byte(card["data"].(string)), &j)
+		// 					if err != nil {
+		// 						logger.Errorf("Failed to parse card message: %v", err)
+		// 						continue
+		// 					}
+		// 					tag, title, desc, text := "", "", "", ""
+		// 					if j.Meta.News.Title != "" {
+		// 						tag = j.Meta.News.Tag
+		// 						title = j.Meta.News.Title
+		// 						desc = j.Meta.News.Desc
+		// 						text = "[卡片][" + tag + "][" + title + "]" + desc
+		// 					} else if j.Meta.Detail_1.Title != "" {
+		// 						tag = j.Meta.Detail_1.Title
+		// 						desc = j.Meta.Detail_1.Desc
+		// 						text = "[卡片][" + tag + "]" + desc
+		// 					}
+		// 					pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
+		// 				default:
+		// 					logger.Errorf("Unknown card message type: %v", card)
+		// 				}
+		// 			}
+		// 		case "file":
+		// 			_, ok := contentMap["data"].(map[string]interface{})
+		// 			if ok {
+		// 				text := "[文件]" // + file["file"].(string)
+		// 				pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+		// 			}
+		// 		case "forward":
+		// 			forward, ok := contentMap["data"].(map[string]interface{})
+		// 			if ok {
+		// 				text := "[合并转发]" // + forward["id"].(string)
+		// 				pMsg.Elements = append(pMsg.Elements, &message.ForwardElement{
+		// 					Content: text,
+		// 					ResId:   forward["id"].(string),
+		// 				})
+		// 			}
+		// 		case "video":
+		// 			video, ok := contentMap["data"].(map[string]interface{})
+		// 			if ok {
+		// 				fileSize, _ := strconv.Atoi(video["file_size"].(string))
+		// 				pMsg.Elements = append(pMsg.Elements, &message.ShortVideoElement{
+		// 					Name: video["file"].(string),
+		// 					Uuid: []byte(video["file_id"].(string)),
+		// 					Size: int32(fileSize),
+		// 					Url:  video["url"].(string),
+		// 				})
+		// 				/*
+		// 					LLOB收到的video类型数据示例：
+		// 					map[string]interface {} ["file": ".mp4", "path": "C:\\Users\\adevi\\Documents\\Tencent Files\\1143469507\\nt_qq\\nt_data\\Video\\2024-07\\Ori\\b24e3a5e725ef156c6c1a2952fba7e95.mp4", "file_id": "CgoxMTQzNDY5NTA3EhRVzq7teOgsGiZb6ie79Cs2KXFkyRjZqP8EIIcLKJ-p0cmpiocDUID1JA", "file_size": "10474585", "url": "https://multimedia.nt.qq.com.cn:443/download?appid=1415&format=origin&orgfmt=t264&spec=0&client_proto=ntv2&client_appid=537226356&client_type=win&client_ver=9.9.11-24402&client_down_type=auto&client_aio_type=aio&rkey=CAQSgAEAeiVhDYuSzI7DqvUpMmuP90fvCJi_a6tITce7D-Rn8ay-MG4uJUD8kfUH9LuBi10T2af2g9t4hYhLT_uunXuLZ7kiw7wEebeJfsVdTnULb-ouAXvpoj7_5N1acir0NOjJ4jtOdM9UPXd-2h93k9On49iHC1QdMk4vMg4aU6DsUQ", ]
+		// 				*/
+		// 			}
+		// 		case "markdown":
+		// 			text := "[Markdown]"
+		// 			pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+		// 		default:
+		// 			logger.Warnf("Unknown content type: %s", contentType)
+		// 		}
+		// 	}
 		// }
-		g := &message.GroupMessage{
-			Id:        int32(wsmsg.MessageID),
-			GroupCode: wsmsg.GroupID.ToInt64(),
-			GroupName: "",
-			// GroupName: groupName,
-			Sender: &message.Sender{
-				Uin:      wsmsg.Sender.UserID.ToInt64(),
-				Nickname: wsmsg.Sender.Nickname,
-				CardName: wsmsg.Sender.Card,
-				IsFriend: false,
-			},
-			Time:           int32(wsmsg.Time),
-			OriginalObject: nil,
-		}
-
-		if MessageContent, ok := wsmsg.MessageContent.(string); ok {
-			// 替换字符串中的"\/"为"/"
-			MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
-			// 使用extractAtElements函数从wsmsg.Message中提取At元素
-			atElements := extractAtElements(MessageContent)
-			// 将提取的At元素和文本元素都添加到g.Elements
-			g.Elements = append(g.Elements, &message.TextElement{Content: MessageContent})
-			for _, elem := range atElements {
-				g.Elements = append(g.Elements, elem)
-			}
-		} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
-			for _, contentInterface := range contentArray {
-				contentMap, ok := contentInterface.(map[string]interface{})
-				if !ok {
-					continue
-				}
-
-				contentType, ok := contentMap["type"].(string)
-				if !ok {
-					continue
-				}
-
-				switch contentType {
-				case "text":
-					text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
-					if ok {
-						// 替换字符串中的"\/"为"/"
-						text = strings.Replace(text, "\\/", "/", -1)
-						g.Elements = append(g.Elements, &message.TextElement{Content: text})
-					}
-				case "at":
-					if data, ok := contentMap["data"].(map[string]interface{}); ok {
-						var qq int64
-						if qqData, ok := data["qq"].(string); ok {
-							if qqData != "all" {
-								qq, err = strconv.ParseInt(qqData, 10, 64)
-								if err != nil {
-									logger.Errorf("Failed to parse qq: %v", err)
-									continue
-								}
-							} else {
-								qq = 0
-							}
-						} else if qqData, ok := data["qq"].(int64); ok {
-							qq = qqData
-						}
-						//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-						g.Elements = append(g.Elements, &message.AtElement{Target: qq, Display: g.Sender.DisplayName()})
-					}
-				case "face":
-					faceID := 0
-					if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-						faceID, _ = strconv.Atoi(face)
-					} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-						faceID = int(face)
-					}
-					g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
-				case "mface":
-					if mface, ok := contentMap["data"].(map[string]interface{}); ok {
-						tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
-						g.Elements = append(g.Elements, &message.MarketFaceElement{
-							Name:       mface["summary"].(string),
-							FaceId:     []byte(mface["emoji_id"].(string)),
-							TabId:      int32(tabId),
-							MediaType:  2,
-							EncryptKey: []byte(mface["key"].(string)),
-						})
-					}
-				case "image":
-					image, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						size := 0
-						if tmp, ok := image["file_size"].(string); ok {
-							size, err = strconv.Atoi(tmp)
-						}
-						if contentMap["subType"] == nil {
-							g.Elements = append(g.Elements, &message.GroupImageElement{
-								Size: int32(size),
-								Url:  image["url"].(string),
-							})
-						} else {
-							if contentMap["subType"].(float64) == 1.0 {
-								g.Elements = append(g.Elements, &message.MarketFaceElement{
-									Name:       "[图片表情]",
-									FaceId:     []byte(image["file"].(string)),
-									SubType:    3,
-									TabId:      0,
-									MediaType:  2,
-									EncryptKey: []byte("0"),
-								})
-							} else {
-								g.Elements = append(g.Elements, &message.GroupImageElement{
-									Size: int32(size),
-									Url:  image["url"].(string),
-								})
-							}
-						}
-					}
-				case "reply":
-					replySeq := 0
-					if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-						replySeq, _ = strconv.Atoi(replyID)
-					} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-						replySeq = int(replyID)
-					}
-					g.Elements = append(g.Elements, &message.ReplyElement{
-						ReplySeq: int32(replySeq),
-						Sender:   g.Sender.Uin,
-						GroupID:  g.GroupCode,
-						Time:     g.Time,
-						Elements: g.Elements,
-					})
-				case "record":
-					record, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						fileSize := 0
-						filePath := ""
-						if size, ok := record["file_size"].(string); ok {
-							fileSize, _ = strconv.Atoi(size)
-						}
-						if path, ok := record["path"].(string); ok {
-							filePath = path
-						}
-						g.Elements = append(g.Elements, &message.VoiceElement{
-							Name: record["file"].(string),
-							Url:  filePath,
-							Size: int32(fileSize),
-						})
-					}
-				case "json":
-					// 处理json消息
-					if card, ok := contentMap["data"].(map[string]interface{}); ok {
-						switch card["data"].(type) {
-						case string:
-							var j CardMessage
-							err := json.Unmarshal([]byte(card["data"].(string)), &j)
-							if err != nil {
-								logger.Errorf("Failed to parse card message: %v", err)
-								continue
-							}
-							tag, title, desc, text := "", "", "", ""
-							if j.Meta.News.Title != "" {
-								tag = j.Meta.News.Tag
-								title = j.Meta.News.Title
-								desc = j.Meta.News.Desc
-								text = "[卡片][" + tag + "][" + title + "]" + desc
-							} else if j.Meta.Detail_1.Title != "" {
-								tag = j.Meta.Detail_1.Title
-								desc = j.Meta.Detail_1.Desc
-								text = "[卡片][" + tag + "]" + desc
-							}
-							g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
-						default:
-							logger.Errorf("Unknown card message type: %v", card)
-						}
-					}
-				case "file":
-					_, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						text := "[文件]" // + file["file"].(string)
-						g.Elements = append(g.Elements, &message.TextElement{Content: text})
-					}
-				case "forward":
-					forward, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						text := "[合并转发]" // + forward["id"].(string)
-						g.Elements = append(g.Elements, &message.ForwardElement{
-							Content: text,
-							ResId:   forward["id"].(string),
-						})
-					}
-				case "video":
-					video, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						fileSize, _ := strconv.Atoi(video["file_size"].(string))
-						g.Elements = append(g.Elements, &message.ShortVideoElement{
-							Name: video["file"].(string),
-							Uuid: []byte(video["file_id"].(string)),
-							Size: int32(fileSize),
-							Url:  video["url"].(string),
-						})
-						/*
-							LLOB收到的video类型数据示例：
-							map[string]interface {} ["file": ".mp4", "path": "C:\\Users\\adevi\\Documents\\Tencent Files\\1143469507\\nt_qq\\nt_data\\Video\\2024-07\\Ori\\b24e3a5e725ef156c6c1a2952fba7e95.mp4", "file_id": "CgoxMTQzNDY5NTA3EhRVzq7teOgsGiZb6ie79Cs2KXFkyRjZqP8EIIcLKJ-p0cmpiocDUID1JA", "file_size": "10474585", "url": "https://multimedia.nt.qq.com.cn:443/download?appid=1415&format=origin&orgfmt=t264&spec=0&client_proto=ntv2&client_appid=537226356&client_type=win&client_ver=9.9.11-24402&client_down_type=auto&client_aio_type=aio&rkey=CAQSgAEAeiVhDYuSzI7DqvUpMmuP90fvCJi_a6tITce7D-Rn8ay-MG4uJUD8kfUH9LuBi10T2af2g9t4hYhLT_uunXuLZ7kiw7wEebeJfsVdTnULb-ouAXvpoj7_5N1acir0NOjJ4jtOdM9UPXd-2h93k9On49iHC1QdMk4vMg4aU6DsUQ", ]
-						*/
-					}
-				case "markdown":
-					text := "[Markdown]"
-					g.Elements = append(g.Elements, &message.TextElement{Content: text})
-				default:
-					logger.Warnf("Unknown content type: %s", contentType)
-				}
-			}
-		}
-		//logger.Debugf("准备c.GroupMessageEvent.dispatch(c, g)")
-		//fmt.Println("准备c.GroupMessageEvent.dispatch(c, g)")
-		//fmt.Printf("%+v\n", g)
-		// 使用 dispatch 方法
-		// c.GroupMessageEvent.dispatch(c, g)
-		// logger.Infof("%+v", g)
-		c.waitDataAndDispatch(g)
-	} else if wsmsg.MessageType == "private" {
-		pMsg := &message.PrivateMessage{
-			Id:         int32(wsmsg.MessageID),
-			InternalId: 0,
-			Self:       c.Uin,
-			Target:     wsmsg.Sender.UserID.ToInt64(),
-			Time:       int32(wsmsg.Time),
-			Sender: &message.Sender{
-				Uin:      wsmsg.Sender.UserID.ToInt64(),
-				Nickname: wsmsg.Sender.Nickname,
-				CardName: "", // Private message might not have a Card
-				IsFriend: wsmsg.SubType == "friend",
-			},
-		}
-
-		// 拿到发送自身发送的消息时修改为正确目标
-		if wsmsg.PostType == "message_sent" {
-			pMsg.Target = int64(wsmsg.TargetID)
-		}
-
-		if MessageContent, ok := wsmsg.MessageContent.(string); ok {
-			// 替换字符串中的"\/"为"/"
-			MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
-			// 使用extractAtElements函数从wsmsg.Message中提取At元素
-			atElements := extractAtElements(MessageContent)
-			// 将提取的At元素和文本元素都添加到g.Elements
-			pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: MessageContent})
-			for _, elem := range atElements {
-				pMsg.Elements = append(pMsg.Elements, elem)
-			}
-		} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
-			for _, contentInterface := range contentArray {
-				contentMap, ok := contentInterface.(map[string]interface{})
-				if !ok {
-					continue
-				}
-
-				contentType, ok := contentMap["type"].(string)
-				if !ok {
-					continue
-				}
-
-				switch contentType {
-				case "text":
-					text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
-					if ok {
-						// 替换字符串中的"\/"为"/"
-						text = strings.Replace(text, "\\/", "/", -1)
-						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-					}
-				case "at":
-					if data, ok := contentMap["data"].(map[string]interface{}); ok {
-						var qq int64
-						if qqData, ok := data["qq"].(string); ok {
-							if qqData != "all" {
-								qq, err = strconv.ParseInt(qqData, 10, 64)
-								if err != nil {
-									logger.Errorf("Failed to parse qq: %v", err)
-									continue
-								}
-							} else {
-								qq = 0
-							}
-						} else if qqData, ok := data["qq"].(int64); ok {
-							qq = qqData
-						}
-						//atText := fmt.Sprintf("[CQ:at,qq=%s]", qq)
-						pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: int64(qq), Display: pMsg.Sender.DisplayName()})
-					}
-				case "face":
-					faceID := 0
-					if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-						faceID, _ = strconv.Atoi(face)
-					} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-						faceID = int(face)
-					}
-					pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
-				case "mface":
-					if mface, ok := contentMap["data"].(map[string]interface{}); ok {
-						tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
-						pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
-							Name:       mface["summary"].(string),
-							FaceId:     []byte(mface["emoji_id"].(string)),
-							TabId:      int32(tabId),
-							MediaType:  2,
-							EncryptKey: []byte(mface["key"].(string)),
-						})
-					}
-				case "image":
-					image, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						size := 0
-						if tmp, ok := image["file_size"].(string); ok {
-							size, err = strconv.Atoi(tmp)
-						}
-						if contentMap["subType"] == nil {
-							pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
-								Size: int32(size),
-								Url:  image["url"].(string),
-							})
-						} else {
-							if contentMap["subType"].(float64) == 1.0 {
-								pMsg.Elements = append(pMsg.Elements, &message.MarketFaceElement{
-									Name:       "[图片表情]",
-									FaceId:     []byte(image["file"].(string)),
-									SubType:    3,
-									TabId:      0,
-									MediaType:  2,
-									EncryptKey: []byte("0"),
-								})
-							} else {
-								pMsg.Elements = append(pMsg.Elements, &message.FriendImageElement{
-									Size: int32(size),
-									Url:  image["url"].(string),
-								})
-							}
-						}
-					}
-				case "reply":
-					replySeq := 0
-					if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-						replySeq, _ = strconv.Atoi(replyID)
-					} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-						replySeq = int(replyID)
-					}
-					pMsg.Elements = append(pMsg.Elements, &message.ReplyElement{
-						ReplySeq: int32(replySeq),
-						Sender:   pMsg.Sender.Uin,
-						Time:     pMsg.Time,
-						Elements: pMsg.Elements,
-					})
-				case "record":
-					record, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						fileSize := 0
-						filePath := ""
-						if size, ok := record["file_size"].(string); ok {
-							fileSize, _ = strconv.Atoi(size)
-						}
-						if path, ok := record["path"].(string); ok {
-							filePath = path
-						}
-						pMsg.Elements = append(pMsg.Elements, &message.VoiceElement{
-							Name: record["file"].(string),
-							Url:  filePath,
-							Size: int32(fileSize),
-						})
-					}
-				case "json":
-					// 处理json消息
-					if card, ok := contentMap["data"].(map[string]interface{}); ok {
-						switch card["data"].(type) {
-						case string:
-							var j CardMessage
-							err := json.Unmarshal([]byte(card["data"].(string)), &j)
-							if err != nil {
-								logger.Errorf("Failed to parse card message: %v", err)
-								continue
-							}
-							tag, title, desc, text := "", "", "", ""
-							if j.Meta.News.Title != "" {
-								tag = j.Meta.News.Tag
-								title = j.Meta.News.Title
-								desc = j.Meta.News.Desc
-								text = "[卡片][" + tag + "][" + title + "]" + desc
-							} else if j.Meta.Detail_1.Title != "" {
-								tag = j.Meta.Detail_1.Title
-								desc = j.Meta.Detail_1.Desc
-								text = "[卡片][" + tag + "]" + desc
-							}
-							pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
-						default:
-							logger.Errorf("Unknown card message type: %v", card)
-						}
-					}
-				case "file":
-					_, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						text := "[文件]" // + file["file"].(string)
-						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-					}
-				case "forward":
-					forward, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						text := "[合并转发]" // + forward["id"].(string)
-						pMsg.Elements = append(pMsg.Elements, &message.ForwardElement{
-							Content: text,
-							ResId:   forward["id"].(string),
-						})
-					}
-				case "video":
-					video, ok := contentMap["data"].(map[string]interface{})
-					if ok {
-						fileSize, _ := strconv.Atoi(video["file_size"].(string))
-						pMsg.Elements = append(pMsg.Elements, &message.ShortVideoElement{
-							Name: video["file"].(string),
-							Uuid: []byte(video["file_id"].(string)),
-							Size: int32(fileSize),
-							Url:  video["url"].(string),
-						})
-						/*
-							LLOB收到的video类型数据示例：
-							map[string]interface {} ["file": ".mp4", "path": "C:\\Users\\adevi\\Documents\\Tencent Files\\1143469507\\nt_qq\\nt_data\\Video\\2024-07\\Ori\\b24e3a5e725ef156c6c1a2952fba7e95.mp4", "file_id": "CgoxMTQzNDY5NTA3EhRVzq7teOgsGiZb6ie79Cs2KXFkyRjZqP8EIIcLKJ-p0cmpiocDUID1JA", "file_size": "10474585", "url": "https://multimedia.nt.qq.com.cn:443/download?appid=1415&format=origin&orgfmt=t264&spec=0&client_proto=ntv2&client_appid=537226356&client_type=win&client_ver=9.9.11-24402&client_down_type=auto&client_aio_type=aio&rkey=CAQSgAEAeiVhDYuSzI7DqvUpMmuP90fvCJi_a6tITce7D-Rn8ay-MG4uJUD8kfUH9LuBi10T2af2g9t4hYhLT_uunXuLZ7kiw7wEebeJfsVdTnULb-ouAXvpoj7_5N1acir0NOjJ4jtOdM9UPXd-2h93k9On49iHC1QdMk4vMg4aU6DsUQ", ]
-						*/
-					}
-				case "markdown":
-					text := "[Markdown]"
-					pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-				default:
-					logger.Warnf("Unknown content type: %s", contentType)
-				}
-			}
-		}
-		selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
-		if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
-			//logger.Debugf("准备c.SelfPrivateMessageEvent.dispatch(c, pMsg)")
-			c.SelfPrivateMessageEvent.dispatch(c, pMsg)
-		} else {
-			//logger.Debugf("准备c.PrivateMessageEvent.dispatch(c, pMsg)")
-			c.PrivateMessageEvent.dispatch(c, pMsg)
-		}
-		c.OutputReceivingMessage(pMsg)
+		// selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
+		// if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
+		// 	//logger.Debugf("准备c.SelfPrivateMessageEvent.dispatch(c, pMsg)")
+		// 	c.SelfPrivateMessageEvent.dispatch(c, pMsg)
+		// } else {
+		// 	//logger.Debugf("准备c.PrivateMessageEvent.dispatch(c, pMsg)")
+		// 	c.PrivateMessageEvent.dispatch(c, pMsg)
+		// }
+		// c.OutputReceivingMessage(pMsg)
 	} else if wsmsg.MessageType == "" {
 		if wsmsg.PostType == "meta_event" {
 			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
@@ -1566,6 +1352,283 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				}
 			}
 		}
+	}
+}
+
+func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessage, pMsg *message.PrivateMessage) {
+	isGroupMsg := true
+	var err error
+	if wsmsg.MessageType == "private" {
+		isGroupMsg = false
+	}
+	if MessageContent, ok := wsmsg.MessageContent.(string); ok {
+		// 替换字符串中的"\/"为"/"
+		MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
+		// 使用extractAtElements函数从wsmsg.Message中提取At元素
+		atElements := extractAtElements(MessageContent)
+		// 将提取的At元素和文本元素都添加到g.Elements
+		if isGroupMsg {
+			g.Elements = append(g.Elements, &message.TextElement{Content: MessageContent})
+			for _, elem := range atElements {
+				g.Elements = append(g.Elements, elem)
+			}
+		} else {
+			pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: MessageContent})
+			for _, elem := range atElements {
+				pMsg.Elements = append(pMsg.Elements, elem)
+			}
+		}
+	} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
+		for _, contentInterface := range contentArray {
+			contentMap, ok := contentInterface.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			contentType, ok := contentMap["type"].(string)
+			if !ok {
+				continue
+			}
+			switch contentType {
+			case "text":
+				text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
+				if ok {
+					// 替换字符串中的"\/"为"/"
+					text = strings.Replace(text, "\\/", "/", -1)
+					if isGroupMsg {
+						g.Elements = append(g.Elements, &message.TextElement{Content: text})
+					} else {
+						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+					}
+				}
+			case "at":
+				if data, ok := contentMap["data"].(map[string]interface{}); ok {
+					var qq int64
+					if qqData, ok := data["qq"].(string); ok {
+						if qqData != "all" {
+							qq, err = strconv.ParseInt(qqData, 10, 64)
+							if err != nil {
+								logger.Errorf("Failed to parse qq: %v", err)
+								continue
+							}
+						} else {
+							qq = 0
+						}
+					} else if qqData, ok := data["qq"].(int64); ok {
+						qq = qqData
+					}
+					if isGroupMsg {
+						g.Elements = append(g.Elements, &message.AtElement{Target: qq, Display: g.Sender.DisplayName()})
+					} else {
+						pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: qq, Display: pMsg.Sender.DisplayName()})
+					}
+				}
+			case "face":
+				faceID := 0
+				if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+					faceID, _ = strconv.Atoi(face)
+				} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+					faceID = int(face)
+				}
+				if isGroupMsg {
+					g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
+				} else {
+					pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+				}
+			case "mface":
+				if mface, ok := contentMap["data"].(map[string]interface{}); ok {
+					tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
+					msg := &message.MarketFaceElement{
+						Name:       mface["summary"].(string),
+						FaceId:     []byte(mface["emoji_id"].(string)),
+						TabId:      int32(tabId),
+						MediaType:  2,
+						EncryptKey: []byte(mface["key"].(string)),
+					}
+					if isGroupMsg {
+						g.Elements = append(g.Elements, msg)
+					} else {
+						pMsg.Elements = append(pMsg.Elements, msg)
+					}
+				}
+			case "image":
+				image, ok := contentMap["data"].(map[string]interface{})
+				if ok {
+					size := 0
+					if tmp, ok := image["file_size"].(string); ok {
+						size, err = strconv.Atoi(tmp)
+					}
+					if contentMap["subType"] == nil {
+						msg := &message.GroupImageElement{
+							Size: int32(size),
+							Url:  image["url"].(string),
+						}
+						if isGroupMsg {
+							g.Elements = append(g.Elements, msg)
+						} else {
+							pMsg.Elements = append(pMsg.Elements, msg)
+						}
+					} else {
+						if contentMap["subType"].(float64) == 1.0 {
+							msg := &message.MarketFaceElement{
+								Name:       "[图片表情]",
+								FaceId:     []byte(image["file"].(string)),
+								SubType:    3,
+								TabId:      0,
+								MediaType:  2,
+								EncryptKey: []byte("0"),
+							}
+							if isGroupMsg {
+								g.Elements = append(g.Elements, msg)
+							} else {
+								pMsg.Elements = append(pMsg.Elements, msg)
+							}
+						} else {
+							msg := &message.GroupImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							}
+							if isGroupMsg {
+								g.Elements = append(g.Elements, msg)
+							} else {
+								pMsg.Elements = append(pMsg.Elements, msg)
+							}
+						}
+					}
+				}
+			case "reply":
+				replySeq := 0
+				if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+					replySeq, _ = strconv.Atoi(replyID)
+				} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+					replySeq = int(replyID)
+				}
+				msg := &message.ReplyElement{
+					ReplySeq: int32(replySeq),
+					Sender:   g.Sender.Uin,
+					GroupID:  g.GroupCode,
+					Time:     g.Time,
+					Elements: g.Elements,
+				}
+				if isGroupMsg {
+					g.Elements = append(g.Elements, msg)
+				} else {
+					pMsg.Elements = append(pMsg.Elements, msg)
+				}
+			case "record":
+				record, ok := contentMap["data"].(map[string]interface{})
+				if ok {
+					fileSize := 0
+					filePath := ""
+					if size, ok := record["file_size"].(string); ok {
+						fileSize, _ = strconv.Atoi(size)
+					}
+					if path, ok := record["path"].(string); ok {
+						filePath = path
+					}
+					msg := &message.VoiceElement{
+						Name: record["file"].(string),
+						Url:  filePath,
+						Size: int32(fileSize),
+					}
+					if isGroupMsg {
+						g.Elements = append(g.Elements, msg)
+					} else {
+						pMsg.Elements = append(pMsg.Elements, msg)
+					}
+				}
+			case "json":
+				// 处理json消息
+				if card, ok := contentMap["data"].(map[string]interface{}); ok {
+					switch card["data"].(type) {
+					case string:
+						var j CardMessage
+						err := json.Unmarshal([]byte(card["data"].(string)), &j)
+						if err != nil {
+							logger.Errorf("Failed to parse card message: %v", err)
+							continue
+						}
+						tag, title, desc, text := "", "", "", ""
+						if j.Meta.News.Title != "" {
+							tag = j.Meta.News.Tag
+							title = j.Meta.News.Title
+							desc = j.Meta.News.Desc
+							text = "[卡片][" + tag + "][" + title + "]" + desc
+						} else if j.Meta.Detail_1.Title != "" {
+							tag = j.Meta.Detail_1.Title
+							desc = j.Meta.Detail_1.Desc
+							text = "[卡片][" + tag + "]" + desc
+						}
+						if isGroupMsg {
+							g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
+						} else {
+							pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
+						}
+					default:
+						logger.Errorf("Unknown card message type: %v", card)
+					}
+				}
+			case "file":
+				_, ok := contentMap["data"].(map[string]interface{})
+				if ok {
+					text := "[文件]" // + file["file"].(string)
+					if isGroupMsg {
+						g.Elements = append(g.Elements, &message.TextElement{Content: text})
+					} else {
+						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+					}
+				}
+			case "forward":
+				forward, ok := contentMap["data"].(map[string]interface{})
+				if ok {
+					text := "[合并转发]" // + forward["id"].(string)
+					msg := &message.ForwardElement{
+						Content: text,
+						ResId:   forward["id"].(string),
+					}
+					if isGroupMsg {
+						g.Elements = append(g.Elements, msg)
+					} else {
+						pMsg.Elements = append(pMsg.Elements, msg)
+					}
+				}
+			case "video":
+				video, ok := contentMap["data"].(map[string]interface{})
+				if ok {
+					fileSize, _ := strconv.Atoi(video["file_size"].(string))
+					msg := &message.ShortVideoElement{
+						Name: video["file"].(string),
+						Uuid: []byte(video["file_id"].(string)),
+						Size: int32(fileSize),
+						Url:  video["url"].(string),
+					}
+					if isGroupMsg {
+						g.Elements = append(g.Elements, msg)
+					} else {
+						pMsg.Elements = append(pMsg.Elements, msg)
+					}
+				}
+			case "markdown":
+				text := "[Markdown]"
+				if isGroupMsg {
+					g.Elements = append(g.Elements, &message.TextElement{Content: text})
+				} else {
+					pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+				}
+			default:
+				logger.Warnf("Unknown content type: %s", contentType)
+			}
+		}
+	}
+	if isGroupMsg {
+		c.waitDataAndDispatch(g)
+	} else {
+		selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
+		if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
+			c.SelfPrivateMessageEvent.dispatch(c, pMsg)
+		} else {
+			c.PrivateMessageEvent.dispatch(c, pMsg)
+		}
+		c.OutputReceivingMessage(pMsg)
 	}
 }
 
@@ -2213,7 +2276,6 @@ func (c *QQClient) ReloadFriendList() error {
 	if err != nil {
 		return err
 	}
-	c.FriendList = nil
 	c.FriendList = rsp
 	return nil
 }
@@ -2223,15 +2285,25 @@ func (c *QQClient) GetFriendList() ([]*FriendInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	var resp []*FriendInfo
 	t, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
+	var resp []FriendData
 	if err := json.Unmarshal(t, &resp); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	friends := make([]*FriendInfo, len(resp))
+	c.debug("GetFriendList: %v", resp)
+	for i, friend := range resp {
+		friends[i] = &FriendInfo{
+			Uin:      friend.UserID,
+			Nickname: friend.NickName,
+			Remark:   friend.Remark,
+			FaceId:   0,
+		}
+	}
+	return friends, nil
 	// echo := generateEcho("get_friend_list")
 	// 构建请求
 	// req := map[string]interface{}{
@@ -2377,7 +2449,6 @@ func (c *QQClient) ReloadGroupList() error {
 	if err != nil {
 		return err
 	}
-	c.GroupList = nil
 	c.GroupList = list
 	return nil
 }
