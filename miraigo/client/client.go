@@ -132,15 +132,9 @@ type QQClient struct {
 
 	groupListLock sync.Mutex
 	//增加的字段
-	ws *websocket.Conn
-	// responseChans        map[string]chan *ResponseGroupsData
-	// responseGroupChans   map[string]chan *ResponseGroupData
-	// responseMembers      map[string]chan *ResponseGroupMemberData
-	// responseFriends      map[string]chan *ResponseFriendList
-	// responseMessage      map[string]chan *ResponseSendMessage
-	// responseSetLeave     map[string]chan *ResponseSetGroupLeave
-	// responseStrangerInfo map[string]chan *ResponseGetStrangerInfo
+	ws                 *websocket.Conn
 	responseCh         map[string]chan *T
+	disconnectChan     chan bool
 	currentEcho        string
 	limiterMessageSend *RateLimiter
 }
@@ -297,12 +291,12 @@ type CardMessage struct {
 		Token    string `json:"token"`
 		Type     string `json:"type"`
 	} `json:"config"`
-	Extra struct {
-		AppType int   `json:"app_type"`
-		AppId   int64 `json:"appid"`
-		MsgSeq  int64 `json:"msg_seq"`
-		Uin     int64 `json:"uin"`
-	} `json:"extra"`
+	// Extra struct {
+	// 	AppType int   `json:"app_type"`
+	// 	AppId   int64 `json:"appid"`
+	// 	MsgSeq  int64 `json:"msg_seq"`
+	// 	Uin     int64 `json:"uin"`
+	// } `json:"extra"`
 	Meta struct {
 		News struct {
 			Action         string `json:"action"`
@@ -686,17 +680,15 @@ func parseEcho(echo string) (string, string) {
 }
 
 func (c *QQClient) handleConnection(ws *websocket.Conn) {
-	//为结构体字段赋值 以便在其他地方访问
+	//处理ws消息并控制重连
 	defer ws.Close()
 	for {
 		_, p, err := ws.ReadMessage()
 		if err != nil {
 			logger.Error(err)
-			//log.Println(err)
 			return
 		}
-		// 打印收到的消息
-		//log.Println(string(p))
+		// 储存收到的消息
 		messageQueue <- p
 	}
 }
@@ -1158,14 +1150,15 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 			} else if wsmsg.NoticeType == "group_decrease" {
 				// 自己被踢
 				if wsmsg.SubType == "kick_me" {
-					operator, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.OperatorId.ToInt64())
-					if err == nil {
+					group := c.FindGroup(wsmsg.GroupID.ToInt64())
+					operator := group.FindMember(wsmsg.OperatorId.ToInt64())
+					if operator != nil {
 						c.GroupLeaveEvent.dispatch(c, &GroupLeaveEvent{
-							Group:    c.FindGroupByUin(wsmsg.GroupID.ToInt64()),
+							Group:    group,
 							Operator: operator,
 						})
 					} else {
-						logger.Warnf(memberNotFind, err)
+						logger.Warnf(memberNotFind, wsmsg.OperatorId)
 					}
 					// for i, group := range c.GroupList {
 					// 	if group.Code == wsmsg.GroupID.ToInt64() {
@@ -1177,23 +1170,23 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				} else {
 					// 其他人退群/被踢
 					sync = true
-					member, err := c.FindMemberByUin(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
-					if err == nil {
+					member := c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
+					if member != nil {
 						operator := member
 						if wsmsg.OperatorId != wsmsg.UserID {
-							operator, err = c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.OperatorId.ToInt64())
+							operator = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.OperatorId.ToInt64())
 						}
-						if err == nil {
+						if operator != nil {
 							c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
 								Group:    member.Group,
 								Member:   member,
 								Operator: operator,
 							})
 						} else {
-							logger.Warnf(memberNotFind, err)
+							logger.Warnf(memberNotFind, wsmsg.OperatorId)
 						}
 					} else {
-						logger.Warnf(memberNotFind, err)
+						logger.Warnf(memberNotFind, wsmsg.UserID)
 					}
 				}
 			} else if wsmsg.NoticeType == "friend_add" {
@@ -1460,13 +1453,17 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 						size, err = strconv.Atoi(tmp)
 					}
 					if contentMap["subType"] == nil {
-						msg := &message.GroupImageElement{
-							Size: int32(size),
-							Url:  image["url"].(string),
-						}
 						if isGroupMsg {
+							msg := &message.GroupImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							}
 							g.Elements = append(g.Elements, msg)
 						} else {
+							msg := &message.FriendImageElement{
+								Size: int32(size),
+								Url:  image["url"].(string),
+							}
 							pMsg.Elements = append(pMsg.Elements, msg)
 						}
 					} else {
@@ -1485,13 +1482,17 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 								pMsg.Elements = append(pMsg.Elements, msg)
 							}
 						} else {
-							msg := &message.GroupImageElement{
-								Size: int32(size),
-								Url:  image["url"].(string),
-							}
 							if isGroupMsg {
+								msg := &message.GroupImageElement{
+									Size: int32(size),
+									Url:  image["url"].(string),
+								}
 								g.Elements = append(g.Elements, msg)
 							} else {
+								msg := &message.FriendImageElement{
+									Size: int32(size),
+									Url:  image["url"].(string),
+								}
 								pMsg.Elements = append(pMsg.Elements, msg)
 							}
 						}
@@ -1596,10 +1597,17 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 			case "video":
 				video, ok := contentMap["data"].(map[string]interface{})
 				if ok {
-					fileSize, _ := strconv.Atoi(video["file_size"].(string))
+					fileSize := 0
+					var fileId []byte
+					if video["file_size"] != nil {
+						fileSize, _ = strconv.Atoi(video["file_size"].(string))
+					}
+					if video["file_id"] != nil {
+						fileId = []byte(video["file_id"].(string))
+					}
 					msg := &message.ShortVideoElement{
 						Name: video["file"].(string),
-						Uuid: []byte(video["file_id"].(string)),
+						Uuid: fileId,
 						Size: int32(fileSize),
 						Url:  video["url"].(string),
 					}
@@ -1865,54 +1873,82 @@ func (c *QQClient) SyncGroupMembers(groupID DynamicInt64) {
 }
 
 func (c *QQClient) StartWebSocketServer() {
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		ws, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			//log.Println(err)
-			logger.Error(err)
-			return
-		}
-
-		// 打印新的 WebSocket 连接日志
-		logger.Info("有新的ws连接了!!")
-		c.ws = ws
-		// allow 10 requests per second
-		c.limiterMessageSend = NewRateLimiter(time.Second, 5, func() Window {
-			return NewLocalWindow()
-		})
-
-		//初始化变量
-		c.responseCh = make(map[string]chan *T)
-		// c.responseChans = make(map[string]chan *ResponseGroupsData)
-		// c.responseGroupChans = make(map[string]chan *ResponseGroupData)
-		// c.responseFriends = make(map[string]chan *ResponseFriendList)
-		// c.responseMembers = make(map[string]chan *ResponseGroupMemberData)
-		// c.responseMessage = make(map[string]chan *ResponseSendMessage)
-		// c.responseSetLeave = make(map[string]chan *ResponseSetGroupLeave)
-		// c.responseStrangerInfo = make(map[string]chan *ResponseGetStrangerInfo)
-
-		// 打印客户端的 headers
-		for name, values := range r.Header {
-			for _, value := range values {
-				logger.WithField(name, value).Debug()
-				//log.Printf("%s: %s", name, value)
-			}
-		}
-		go c.RefreshList()
-		go c.SendLimit()
-		go c.processMessage()
-		c.handleConnection(ws)
-
-	})
-
-	wsAddr := config.GlobalConfig.GetString("ws-server")
-	if wsAddr == "" {
-		wsAddr = "0.0.0.0:15630"
+	wsMode := config.GlobalConfig.GetString("websocket.mode")
+	if wsMode == "" {
+		wsMode = "ws-server"
 	}
-	logger.WithField("force", true).Printf("WebSocket server started on ws://%s/ws", wsAddr)
-	logger.Fatal(http.ListenAndServe(wsAddr, nil))
-	//log.Println("WebSocket server started on ws://0.0.0.0:15630")
-	//log.Fatal(http.ListenAndServe("0.0.0.0:15630", nil))
+	if wsMode == "ws-server" {
+		http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+			ws, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				//log.Println(err)
+				logger.Error(err)
+				return
+			}
+			// 打印客户端的 headers
+			for name, values := range r.Header {
+				for _, value := range values {
+					logger.WithField(name, value).Debug()
+				}
+			}
+			c.wsInit(ws, wsMode)
+		})
+		// 启动监听
+		wsAddr := config.GlobalConfig.GetString("websocket.ws-server")
+		if wsAddr == "" {
+			wsAddr = "0.0.0.0:15630"
+		}
+		logger.WithField("force", true).Printf("WebSocket server started on ws://%s/ws", wsAddr)
+		logger.Fatal(http.ListenAndServe(wsAddr, nil))
+	} else {
+		c.disconnectChan = make(chan bool)
+		go c.reverseConn(wsMode)
+	}
+}
+
+func (c *QQClient) reverseConn(mode string) {
+	var err error
+	var ws *websocket.Conn
+	// 使用反向链接
+	wsAddr := config.GlobalConfig.GetString("websocket.ws-reverse")
+	if wsAddr == "" {
+		wsAddr = "ws://localhost:3001"
+	}
+	logger.WithField("force", true).Printf("WebSocket reverse started on %s", wsAddr)
+	for {
+		ws, _, err = websocket.DefaultDialer.Dial(wsAddr, nil)
+		if err != nil {
+			logger.Debug("dial:", err)
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		c.wsInit(ws, mode)
+		<-c.disconnectChan
+		logger.Debug("Received disconnect signal, attempting to reconnect...")
+	}
+}
+
+func (c *QQClient) wsInit(ws *websocket.Conn, mode string) {
+	logger.Info("有新的ws连接了!!")
+	//初始化变量
+	c.ws = ws
+	c.responseCh = make(map[string]chan *T)
+	// 初始化流控
+	c.limiterMessageSend = NewRateLimiter(time.Second, 5, func() Window {
+		return NewLocalWindow()
+	})
+	// 刷新信息并启动流控和消息处理
+	go c.RefreshList()
+	go c.SendLimit()
+	go c.processMessage()
+	if mode == "ws-server" {
+		c.handleConnection(ws)
+	} else {
+		go func() {
+			c.handleConnection(ws)
+			c.disconnectChan <- true // 连接断开时发送信号
+		}()
+	}
 }
 
 // RefreshList 刷新联系人
