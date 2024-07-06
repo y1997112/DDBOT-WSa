@@ -282,7 +282,7 @@ type StrangerInfo struct {
 type CardMessage struct {
 	App    string `json:"app"`
 	Config struct {
-		AutoSize int    `json:"autosize"`
+		AutoSize any    `json:"autosize"` // string or int
 		Width    int    `json:"width"`
 		Height   int    `json:"height"`
 		Forward  int    `json:"forward"`
@@ -297,41 +297,64 @@ type CardMessage struct {
 	// 	MsgSeq  int64 `json:"msg_seq"`
 	// 	Uin     int64 `json:"uin"`
 	// } `json:"extra"`
-	Meta struct {
-		News struct {
-			Action         string `json:"action"`
-			AndroidPkgName string `json:"android_pkg_name"`
-			AppType        int    `json:"app_type"`
-			AppId          int64  `json:"appid"`
-			CTime          int64  `json:"ctime"`
-			Desc           string `json:"desc"`
-			JumpUrl        string `json:"jumpUrl"`
-			PreView        string `json:"preview"`
-			TagIcon        string `json:"tagIcon"`
-			SourceIcon     string `json:"source_icon"`
-			SourceUrl      string `json:"source_url"`
-			Tag            string `json:"tag"`
-			Title          string `json:"title"`
-			Uin            int64  `json:"uin"`
-		} `json:"news"`
-		Detail_1 struct {
-			AppId   string `json:"appid"`
-			AppType int    `json:"app_type"`
-			Title   string `json:"title"`
-			Desc    string `json:"desc"`
-			Icon    string `json:"icon"`
-			PreView string `json:"preview"`
-			Url     string `json:"url"`
-			Scene   int    `json:"scene"`
-			Host    struct {
-				Uin  int64  `json:"uin"`
-				Nick string `json:"nick"`
-			} `json:"host"`
-		} `json:"detail_1"`
-	} `json:"meta"`
+	Meta any `json:"meta"` // {
+	// News struct {
+	// 	Action         string `json:"action"`
+	// 	AndroidPkgName string `json:"android_pkg_name"`
+	// 	AppType        int    `json:"app_type"`
+	// 	AppId          int64  `json:"appid"`
+	// 	CTime          int64  `json:"ctime"`
+	// 	Desc           string `json:"desc"`
+	// 	JumpUrl        string `json:"jumpUrl"`
+	// 	PreView        string `json:"preview"`
+	// 	TagIcon        string `json:"tagIcon"`
+	// 	SourceIcon     string `json:"source_icon"`
+	// 	SourceUrl      string `json:"source_url"`
+	// 	Tag            string `json:"tag"`
+	// 	Title          string `json:"title"`
+	// 	Uin            int64  `json:"uin"`
+	// } `json:"news"`
+	// Detail_1 struct {
+	// 	AppId   string `json:"appid"`
+	// 	AppType int    `json:"app_type"`
+	// 	Title   string `json:"title"`
+	// 	Desc    string `json:"desc"`
+	// 	Icon    string `json:"icon"`
+	// 	PreView string `json:"preview"`
+	// 	Url     string `json:"url"`
+	// 	Scene   int    `json:"scene"`
+	// 	Host    struct {
+	// 		Uin  int64  `json:"uin"`
+	// 		Nick string `json:"nick"`
+	// 	} `json:"host"`
+	// } `json:"detail_1"`
+	// Music struct {
+	// 	Action         string `json:"action"`
+	// 	AndroidPkgName string `json:"android_pkg_name"`
+	// 	AppType        int    `json:"app_type"`
+	// 	AppId          int64  `json:"appid"`
+	// 	CTime          int64  `json:"ctime"`
+	// 	Desc           string `json:"desc"`
+	// 	JumpUrl        string `json:"jumpUrl"`
+	// 	MusicUrl       string `json:"musicUrl"`
+	// 	PreView        string `json:"preview"`
+	// 	SourceMsgId    string `json:"source_msg_id"`
+	// 	SourceIcon     string `json:"source_icon"`
+	// 	SourceUrl      string `json:"source_url"`
+	// 	Tag            string `json:"tag"`
+	// 	Title          string `json:"title"`
+	// 	Uin            int64  `json:"uin"`
+	// } `json:"music"`
+	// } `json:"meta"`
 	Prompt string `json:"prompt"`
 	Ver    string `json:"ver"`
 	View   string `json:"view"`
+}
+
+type CardMessageMeta struct {
+	Title string `json:"title"`
+	Desc  string `json:"desc"`
+	Tag   string `json:"tag"`
 }
 
 // 返回结构
@@ -1433,11 +1456,14 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 				if mface, ok := contentMap["data"].(map[string]interface{}); ok {
 					tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
 					msg := &message.MarketFaceElement{
-						Name:       mface["summary"].(string),
+						Name:       "",
 						FaceId:     []byte(mface["emoji_id"].(string)),
 						TabId:      int32(tabId),
 						MediaType:  2,
 						EncryptKey: []byte(mface["key"].(string)),
+					}
+					if summary, ok := mface["summary"].(string); ok {
+						msg.Name = summary
 					}
 					if isGroupMsg {
 						g.Elements = append(g.Elements, msg)
@@ -1505,16 +1531,23 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 				} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
 					replySeq = int(replyID)
 				}
-				msg := &message.ReplyElement{
-					ReplySeq: int32(replySeq),
-					Sender:   g.Sender.Uin,
-					GroupID:  g.GroupCode,
-					Time:     g.Time,
-					Elements: g.Elements,
-				}
+
 				if isGroupMsg {
+					msg := &message.ReplyElement{
+						ReplySeq: int32(replySeq),
+						Sender:   g.Sender.Uin,
+						GroupID:  g.GroupCode,
+						Time:     g.Time,
+						Elements: g.Elements,
+					}
 					g.Elements = append(g.Elements, msg)
 				} else {
+					msg := &message.ReplyElement{
+						ReplySeq: int32(replySeq),
+						Sender:   pMsg.Sender.Uin,
+						Time:     pMsg.Time,
+						Elements: pMsg.Elements,
+					}
 					pMsg.Elements = append(pMsg.Elements, msg)
 				}
 			case "record":
@@ -1550,21 +1583,60 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 							logger.Errorf("Failed to parse card message: %v", err)
 							continue
 						}
-						tag, title, desc, text := "", "", "", ""
-						if j.Meta.News.Title != "" {
-							tag = j.Meta.News.Tag
-							title = j.Meta.News.Title
-							desc = j.Meta.News.Desc
-							text = "[卡片][" + tag + "][" + title + "]" + desc
-						} else if j.Meta.Detail_1.Title != "" {
-							tag = j.Meta.Detail_1.Title
-							desc = j.Meta.Detail_1.Desc
-							text = "[卡片][" + tag + "]" + desc
-						}
-						if isGroupMsg {
-							g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
-						} else {
-							pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
+						needDec := false
+						tag, title, desc, text := "", "", "", "[卡片]["
+						if meta, ok := j.Meta.(map[string]interface{}); ok {
+							var metaData any
+							var metaMap = CardMessageMeta{
+								Title: "未知",
+								Desc:  "未知",
+								Tag:   "未知",
+							}
+							if metaData, ok = meta["news"].(map[string]interface{}); ok {
+								needDec = true
+							} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
+								needDec = true
+							} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
+								needDec = true
+								if host, ok := metaData.(map[string]interface{})["host"].(map[string]interface{}); ok {
+									metaMap.Tag = host["nick"].(string)
+								}
+							} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
+								needDec = true
+							} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
+								metaMap = CardMessageMeta{
+									Title: metaData.(map[string]interface{})["nickname"].(string),
+									Desc:  metaData.(map[string]interface{})["title"].(string),
+									Tag:   "视频",
+								}
+							} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
+								if channel, ok := metaData.(map[string]interface{})["channel_info"].(map[string]interface{}); ok {
+									feedTitle := "未知"
+									if feedTitle, ok = metaData.(map[string]interface{})["feed"].(map[string]interface{})["title"].(map[string]interface{})["contents"].([]interface{})[0].(map[string]interface{})["text_content"].(map[string]interface{})["text"].(string); !ok {
+										logger.Warnf("Failed to parse feed title")
+									}
+									metaMap = CardMessageMeta{
+										Title: channel["channel_name"].(string),
+										Desc:  feedTitle,
+										Tag:   "频道",
+									}
+								} else {
+									needDec = true
+								}
+							}
+							if needDec {
+								b, _ := json.Marshal(metaData)
+								_ = json.Unmarshal(b, &metaMap)
+							}
+							title = metaMap.Title
+							desc = metaMap.Desc
+							tag = metaMap.Tag
+							text += tag + "][" + title + "][" + desc + "]"
+							if isGroupMsg {
+								g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
+							} else {
+								pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
+							}
 						}
 					default:
 						logger.Errorf("Unknown card message type: %v", card)
@@ -1707,9 +1779,9 @@ func (c *QQClient) GetGroupMemberInfo(groupCode int64, memberUin int64) (*GroupM
 	return &ret, nil
 }
 
-func (c *QQClient) SendApi(api string, params map[string]any, expTime ...int) (any, error) {
+func (c *QQClient) SendApi(api string, params map[string]any, expTime ...float64) (any, error) {
 	// 设置超时时间
-	var timeout int
+	var timeout float64
 	if len(expTime) > 0 {
 		timeout = expTime[0]
 	} else {
@@ -2875,12 +2947,12 @@ func (c *QQClient) SolveGroupJoinRequest(i any, accept, block bool, reason strin
 		"approve":  accept,
 		"reason":   reason,
 	}
-	if _, ok := Req.(*UserJoinGroupRequest); ok {
-		params["flag"] = Req.(*UserJoinGroupRequest).Flag
-	} else if _, ok := Req.(*GroupInvitedRequest); ok {
-		params["flag"] = Req.(*GroupInvitedRequest).Flag
+	if req, ok := Req.(*UserJoinGroupRequest); ok {
+		params["flag"] = req.Flag
+	} else if req, ok := Req.(*GroupInvitedRequest); ok {
+		params["flag"] = req.Flag
 	}
-	_, _ = c.SendApi("set_group_add_request", map[string]any{})
+	_, _ = c.SendApi("set_group_add_request", params)
 }
 
 func (c *QQClient) SolveFriendRequest(req *NewFriendRequest, accept bool) {

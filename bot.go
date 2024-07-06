@@ -180,7 +180,7 @@ logLevel: info
 # ws-server 默认监听全部请求，如需限制请修改为指定ip:端口
 # ws-reverse 需要配合反向ws服务器使用，默认为LLOneBot地址
 websocket:
-  mode: ws-reverse 
+  mode: ws-server
   ws-server: 0.0.0.0:15630
   ws-reverse: ws://localhost:3001
 

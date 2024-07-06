@@ -110,7 +110,7 @@ func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, n
 	data, err := c.SendApi("send_private_msg", map[string]any{
 		"user_id": finalUserID,
 		"message": newstr,
-	})
+	}, expTime)
 	if err != nil {
 		logger.Errorf("发送私聊消息失败: %v", err)
 		return nil

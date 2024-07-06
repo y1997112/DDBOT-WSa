@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/Sora233/DDBOT/utils/msgstringer"
 	"github.com/Sora233/MiraiGo-Template/bot"
 	"github.com/Sora233/MiraiGo-Template/config"
+	"github.com/Sora233/sliceutil"
 	"github.com/fsnotify/fsnotify"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/robfig/cron/v3"
@@ -221,6 +223,24 @@ func (l *Lsp) Init() {
 func (l *Lsp) PostInit() {
 }
 
+func (l *Lsp) DebugCheck(groupCode int64, uin int64, isGroupMessage bool) bool {
+	logger.Info("Debug: 触发白名单匹配")
+	var ok bool
+	if Debug {
+		if isGroupMessage {
+			if sliceutil.Contains(config.GlobalConfig.GetStringSlice("debug.group"), strconv.FormatInt(groupCode, 10)) {
+				ok = true
+			}
+		}
+		if sliceutil.Contains(config.GlobalConfig.GetStringSlice("debug.uin"), strconv.FormatInt(uin, 10)) {
+			ok = true
+		}
+	} else {
+		ok = true
+	}
+	return ok
+}
+
 func (l *Lsp) Serve(bot *bot.Bot) {
 	bot.GroupMemberJoinEvent.Subscribe(func(qqClient *client.QQClient, event *client.MemberJoinGroupEvent) {
 		if err := localdb.Set(localdb.Key("OnGroupMemberJoined", event.Group.Code, event.Member.Uin, event.Member.JoinTime), "",
@@ -233,7 +253,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 			"member_code": event.Member.Uin,
 			"member_name": event.Member.DisplayName(),
 		})
-		if m != nil {
+		if m != nil && l.DebugCheck(event.Group.Code, event.Member.Uin, true) {
 			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
 		}
 	})
@@ -248,7 +268,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 			"member_code": event.Member.Uin,
 			"member_name": event.Member.DisplayName(),
 		})
-		if m != nil {
+		if m != nil && l.DebugCheck(event.Group.Code, event.Member.Uin, true) {
 			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
 		}
 	})
@@ -492,7 +512,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 				}
 			}
 			m, _ := template.LoadAndExec("trigger.group.poke.tmpl", data)
-			if m != nil {
+			if m != nil && l.DebugCheck(event.GroupCode, event.Sender, true) {
 				l.SendMsg(m, mmsg.NewGroupTarget(event.GroupCode))
 			}
 		}
@@ -509,7 +529,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 					data["member_name"] = fi.Nickname
 				}
 				m, _ := template.LoadAndExec("trigger.private.poke.tmpl", data)
-				if m != nil {
+				if m != nil && l.DebugCheck(0, event.Sender, false) {
 					l.SendMsg(m, mmsg.NewPrivateTarget(event.Sender))
 				}
 			}

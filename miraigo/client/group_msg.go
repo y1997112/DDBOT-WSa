@@ -141,7 +141,7 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 	data, err := c.SendApi("send_group_msg", map[string]any{
 		"group_id": finalGroupID,
 		"message":  newstr,
-	})
+	}, expTime)
 	if err != nil {
 		return nil, errors.Wrap(err, "发送群消息失败")
 	}
