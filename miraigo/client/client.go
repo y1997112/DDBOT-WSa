@@ -1294,7 +1294,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 			}
 			// 选择性执行上述结果
 			if sync {
-				if c.GroupList != nil {
+				if g := c.FindGroup(wsmsg.GroupID.ToInt64()); g != nil {
 					c.SyncGroupMembers(wsmsg.GroupID)
 					// c.SyncTickerControl(1, wsmsg, refresh)
 				}
@@ -1881,10 +1881,10 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 }
 
 func (c *QQClient) waitDataAndDispatch(g *message.GroupMessage) {
-	if c.GroupList != nil {
+	if group := c.FindGroup(g.GroupCode); group != nil {
 		c.SetMsgGroupNames(g)
 	}
-	if c.FriendList != nil {
+	if friend := c.FindFriend(g.Sender.Uin); friend != nil {
 		c.SetFriend(g)
 	}
 	// 使用 dispatch 方法

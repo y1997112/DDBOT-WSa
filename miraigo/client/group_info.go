@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -353,6 +354,11 @@ func (g *GroupInfo) Update(f func(*GroupInfo)) {
 }
 
 func (g *GroupInfo) Read(f func(*GroupInfo) any) any {
+	defer func() {
+		if e := recover(); e != nil {
+			logger.Errorf("读取群组信息失败：%v\n%s", e, debug.Stack())
+		}
+	}()
 	g.lock.RLock()
 	defer g.lock.RUnlock()
 	return f(g)

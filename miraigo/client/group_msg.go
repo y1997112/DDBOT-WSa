@@ -167,8 +167,8 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 		Time:     int32(time.Now().Unix()),
 		Elements: m.Elements,
 	}
-	if c.GroupList != nil {
-		retMsg.GroupName = c.FindGroupByUin(groupCode).Name
+	if g := c.FindGroup(groupCode); g != nil {
+		retMsg.GroupName = g.Name
 	}
 	return &retMsg, nil
 	// // 发送消息
