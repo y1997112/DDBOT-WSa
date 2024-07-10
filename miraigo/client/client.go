@@ -1232,12 +1232,6 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							operator = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.OperatorId.ToInt64())
 						}
 						if operator != nil {
-							// 事件入库
-							c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
-								Group:    member.Group,
-								Member:   member,
-								Operator: operator,
-							})
 							// 将成员从群聊删除
 							for i, m := range member.Group.Members {
 								if m.Uin == member.Uin {
@@ -1245,6 +1239,12 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 									break
 								}
 							}
+							// 事件入库
+							c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
+								Group:    member.Group,
+								Member:   member,
+								Operator: operator,
+							})
 						} else {
 							sync = true
 							logger.Warnf(memberNotFind, wsmsg.OperatorId)
