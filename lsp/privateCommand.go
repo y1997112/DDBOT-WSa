@@ -1308,7 +1308,7 @@ func (c *LspPrivateCommand) SysinfoCommand() {
 func (c *LspPrivateCommand) DebugCheck() bool {
 	var ok bool
 	if c.debug {
-		if sliceutil.Contains(config.GlobalConfig.GetStringSlice("debug.uin"), c.msg.Sender) {
+		if sliceutil.Contains(config.GlobalConfig.GetStringSlice("debug.uin"), strconv.FormatInt(c.msg.Sender.Uin, 10)) {
 			ok = true
 		}
 	} else {

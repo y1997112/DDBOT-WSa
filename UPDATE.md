@@ -1,4 +1,17 @@
 ## DDBOT最近更新日志
+- 2024-07-11 0.2.7(Wsa)
+  - 修复群员名片更新后不刷新的问题
+  - 修改事件处理方式，降低上游负载
+  - 修复用户白名单（Debug）失效的问题
+  - 新增两个模板：群名片变更、群权限变更
+    - 名称：trigger.group.card_updated.tmpl
+    - 模板变量：group_code、member_code、old_member_name、member_name
+    - 默认不开启，使用方式请参考示例文档
+    -
+    - 名称：trigger.group.admin_changed.tmpl
+    - 模板变量：group_code、member_code、member_name、old_permission、permission
+    - 默认不开启，使用方式请参考示例文档
+
 - 2024-07-09 0.2.6b(Wsa)
   - 修复群组或好友列表获取异常导致的崩溃
   - 增加无法获取群组和好友信息场景容错，防止程序崩溃

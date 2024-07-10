@@ -224,7 +224,6 @@ func (l *Lsp) PostInit() {
 }
 
 func (l *Lsp) DebugCheck(groupCode int64, uin int64, isGroupMessage bool) bool {
-	logger.Info("Debug: 触发白名单匹配")
 	var ok bool
 	if Debug {
 		if isGroupMessage {
@@ -618,6 +617,61 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		}
 		if err := bot.ReLogin(event); err != nil {
 			logger.Fatalf("重连时发生错误%v，bot将自动退出", err)
+		}
+	})
+
+	bot.MemberCardUpdatedEvent.Subscribe(func(qqClient *client.QQClient, event *client.MemberCardUpdatedEvent) {
+		// 群名片更新通知
+		data := map[string]interface{}{
+			"group_code":      event.Group.Code,
+			"member_code":     event.Member.Uin,
+			"old_member_name": event.OldCard,
+			"member_name":     event.Member.DisplayName(),
+		}
+		if event.OldCard == "" {
+			data["old_member_name"] = event.Member.Nickname
+		}
+		// if gi := localutils.GetBot().FindGroup(event.Group.Code); gi != nil {
+		// 	data["group_name"] = gi.Name
+		// 	if fi := gi.FindMember(event.Member.Uin); fi != nil {
+		// 		data["member_name"] = fi.DisplayName()
+		// 	}
+		// }
+		m, _ := template.LoadAndExec("trigger.group.card_updated.tmpl", data)
+		if m != nil {
+			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
+		}
+	})
+
+	bot.GroupMemberPermissionChangedEvent.Subscribe(func(qqClient *client.QQClient, event *client.MemberPermissionChangedEvent) {
+		// 群名片更新通知
+		data := map[string]interface{}{
+			"group_code":  event.Group.Code,
+			"member_code": event.Member.Uin,
+			"member_name": event.Member.DisplayName(),
+		}
+		permission := func(permission client.MemberPermission) string {
+			switch permission {
+			case client.Member:
+				return "群员"
+			case client.Administrator:
+				return "管理员"
+			case client.Owner:
+				return "群主"
+			}
+			return "未知权限"
+		}
+		data["old_permission"] = permission(event.OldPermission)
+		data["permission"] = permission(event.NewPermission)
+		// if gi := localutils.GetBot().FindGroup(event.Group.Code); gi != nil {
+		// 	data["group_name"] = gi.Name
+		// 	if fi := gi.FindMember(event.Member.Uin); fi != nil {
+		// 		data["member_name"] = fi.DisplayName()
+		// 	}
+		// }
+		m, _ := template.LoadAndExec("trigger.group.admin_changed.tmpl", data)
+		if m != nil {
+			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
 		}
 	})
 
