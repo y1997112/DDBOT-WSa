@@ -1228,7 +1228,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					member := c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
 					if member != nil {
 						operator := member
-						if wsmsg.OperatorId != wsmsg.UserID {
+						if wsmsg.OperatorId != wsmsg.UserID && wsmsg.OperatorId != 0 {
 							operator = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.OperatorId.ToInt64())
 						}
 						if operator != nil {
