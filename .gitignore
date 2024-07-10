@@ -15,3 +15,7 @@ DDBOT
 /dist/
 /template
 /version*.json
+/cmd/logs
+/cmd/qq-logs
+/cmd/template
+cmd/QQ卡片消息示例.json

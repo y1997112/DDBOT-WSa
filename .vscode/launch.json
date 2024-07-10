@@ -15,7 +15,7 @@
                 "GOARCH": "amd64"
             },
             "args": [
-                
+                "--debug"
             ]
         }
     ]
