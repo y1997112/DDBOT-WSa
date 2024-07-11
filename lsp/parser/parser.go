@@ -1,11 +1,12 @@
 package parser
 
 import (
+	"strings"
+	"sync"
+
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/lsp/cfg"
 	"github.com/Sora233/DDBOT/utils"
-	"strings"
-	"sync"
 )
 
 type Parser struct {
@@ -25,10 +26,12 @@ func (p *Parser) Parse(elems []message.IMessageElement) {
 	if len(elems) > 0 {
 		var search []message.IMessageElement
 		if elems[0].Type() == message.Reply {
-			if elems[1].Type() == message.At {
-				search = elems[2:]
-			} else {
-				search = elems[1:]
+			if len(elems) > 1 {
+				if elems[1].Type() == message.At {
+					search = elems[2:]
+				} else {
+					search = elems[1:]
+				}
 			}
 		} else {
 			search = elems[:]

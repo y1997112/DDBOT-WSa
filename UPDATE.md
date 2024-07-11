@@ -4,6 +4,7 @@
   - 修改事件处理方式，降低上游负载
   - 修复用户白名单（Debug）失效的问题
   - 修复退群事件找不到群员0的问题
+  - 修复收到异常消息可能导致的错误
   - 新增两个模板：群名片变更、群权限变更
     - 名称：trigger.group.card_updated.tmpl
     - 模板变量：group_code、member_code、old_member_name、member_name
