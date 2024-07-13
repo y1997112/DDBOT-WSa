@@ -624,6 +624,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		// 群名片更新通知
 		data := map[string]interface{}{
 			"group_code":      event.Group.Code,
+			"group_name":      event.Group.Name,
 			"member_code":     event.Member.Uin,
 			"old_member_name": event.OldCard,
 			"member_name":     event.Member.DisplayName(),
@@ -647,6 +648,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		// 群名片更新通知
 		data := map[string]interface{}{
 			"group_code":  event.Group.Code,
+			"group_name":  event.Group.Name,
 			"member_code": event.Member.Uin,
 			"member_name": event.Member.DisplayName(),
 		}

@@ -1234,3 +1234,48 @@ ACFUN-{{ .name }}直播结束了
 ```
 
 </details>
+
+- 群名片变更事件
+
+模板名：`trigger.group.card_updated.tmpl`
+
+| 模板变量         | 类型    | 含义            |
+|-----------------|--------|----------------|
+| group_code      | int64  | 发生事件的群号码  |
+| group_name      | string | 发生事件的群名称  |
+| member_code     | int64  | 改名片的用户QQ号  |
+| member_name     | string | 改名片的用户昵称  |
+| old_member_name | string | 改之前的用户昵称  |
+
+<details>
+  <summary>默认模板</summary>
+
+*该模板默认为空，即不发送消息*
+
+```text
+```
+
+</details>
+
+- 群名片变更事件
+
+模板名：`trigger.group.admin_changed.tmpl`
+
+| 模板变量        | 类型    | 含义             |
+|----------------|--------|-----------------|
+| group_code     | int64  | 发生事件的群号码   |
+| group_name     | string | 发生事件的群名称   |
+| member_code    | int64  | 被改权限的用户QQ号 |
+| member_name    | string | 被改权限的用户昵称 |
+| old_permission | string | 改之前的用户权限   |
+| permission     | string | 现在的用户权限    |
+
+<details>
+  <summary>默认模板</summary>
+
+*该模板默认为空，即不发送消息*
+
+```text
+```
+
+</details>
