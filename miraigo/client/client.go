@@ -1330,21 +1330,25 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 						skip = true
 					}
 				}
-				if !skip {
-					if wsmsg.Duration > 0 {
-						member.ShutUpTimestamp = time.Now().Add(time.Second * time.Duration(wsmsg.Duration)).Unix()
-					} else {
-						member.ShutUpTimestamp = 0
+				if member != nil {
+					if !skip {
+						if wsmsg.Duration > 0 {
+							member.ShutUpTimestamp = time.Now().Add(time.Second * time.Duration(wsmsg.Duration)).Unix()
+						} else {
+							member.ShutUpTimestamp = 0
+						}
+						if wsmsg.Duration == -1 {
+							wsmsg.Duration = 268435455
+						}
+						c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
+							GroupCode:   wsmsg.GroupID.ToInt64(),
+							OperatorUin: wsmsg.OperatorId.ToInt64(),
+							TargetUin:   wsmsg.UserID.ToInt64(),
+							Time:        wsmsg.Duration,
+						})
 					}
-					if wsmsg.Duration == -1 {
-						wsmsg.Duration = 268435455
-					}
-					c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
-						GroupCode:   wsmsg.GroupID.ToInt64(),
-						OperatorUin: wsmsg.OperatorId.ToInt64(),
-						TargetUin:   wsmsg.UserID.ToInt64(),
-						Time:        wsmsg.Duration,
-					})
+				} else {
+					logger.Warnf(memberNotFind, wsmsg.UserID)
 				}
 			}
 			// 选择性执行上述结果
