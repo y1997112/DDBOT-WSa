@@ -61,6 +61,9 @@ func MsgToString(elements []message.IMessageElement) string {
 		case *message.GroupFileElement:
 			res.WriteString("[File]")
 			res.WriteString(e.Name)
+		case *message.FriendFileElement:
+			res.WriteString("[File]")
+			res.WriteString(e.Name)
 		case *message.ShortVideoElement:
 			res.WriteString("[Video]")
 		case *message.ForwardElement:

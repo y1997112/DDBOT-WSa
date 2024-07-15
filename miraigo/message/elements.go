@@ -48,6 +48,13 @@ type GroupFileElement struct {
 	Busid int32
 }
 
+type FriendFileElement struct {
+	Name  string
+	Size  int64
+	Path  string
+	Busid int32
+}
+
 type ReplyElement struct {
 	ReplySeq int32
 	Sender   int64
@@ -248,6 +255,10 @@ func (e *ReplyElement) Type() ElementType {
 }
 
 func (e *GroupFileElement) Type() ElementType {
+	return File
+}
+
+func (e *FriendFileElement) Type() ElementType {
 	return File
 }
 

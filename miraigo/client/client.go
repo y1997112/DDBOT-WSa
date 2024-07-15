@@ -1702,15 +1702,31 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 					}
 				}
 			case "file":
-				_, ok := contentMap["data"].(map[string]interface{})
+				file, ok := contentMap["data"].(map[string]interface{})
 				if ok {
-					text := "[文件]" // + file["file"].(string)
+					var fileSize int64
+					switch file["file_size"].(type) {
+					case string:
+						fileSize, _ = strconv.ParseInt(file["file_size"].(string), 10, 64)
+					case int64:
+						fileSize = file["file_size"].(int64)
+					}
 					if isGroupMsg {
-						g.Elements = append(g.Elements, &message.TextElement{Content: text})
+						g.Elements = append(g.Elements, &message.GroupFileElement{
+							Name: file["file"].(string),
+							Size: fileSize,
+							Path: file["path"].(string),
+						})
 					} else {
-						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
+						pMsg.Elements = append(pMsg.Elements, &message.FriendFileElement{
+							Name: file["file"].(string),
+							Size: fileSize,
+							Path: file["path"].(string),
+						})
+						// pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
 					}
 				}
+
 			case "forward":
 				forward, ok := contentMap["data"].(map[string]interface{})
 				if ok {
@@ -1924,6 +1940,10 @@ func (c *QQClient) OutputReceivingMessage(Msg interface{}) {
 			tmpText += e.Content
 		} else if _, ok := elem.(*message.ShortVideoElement); ok {
 			tmpText += "[视频]"
+		} else if _, ok := elem.(*message.GroupFileElement); ok {
+			tmpText += "[文件]"
+		} else if _, ok := elem.(*message.FriendFileElement); ok {
+			tmpText += "[文件]"
 		}
 	}
 	if !mode {

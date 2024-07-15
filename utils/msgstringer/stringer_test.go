@@ -1,8 +1,9 @@
 package msgstringer
 
 import (
-	"github.com/Mrs4s/MiraiGo/message"
 	"testing"
+
+	"github.com/Mrs4s/MiraiGo/message"
 )
 
 func TestMsgToString(t *testing.T) {
@@ -16,6 +17,7 @@ func TestMsgToString(t *testing.T) {
 		message.AtAll(),
 		&message.RedBagElement{},
 		&message.GroupFileElement{},
+		&message.FriendFileElement{},
 		&message.ShortVideoElement{},
 		&message.ForwardElement{},
 		&message.MusicShareElement{},

@@ -639,7 +639,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		// 	}
 		// }
 		m, _ := template.LoadAndExec("trigger.group.card_updated.tmpl", data)
-		if m != nil {
+		if m != nil && l.DebugCheck(event.Group.Code, event.Member.Uin, true) {
 			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
 		}
 	})
@@ -672,7 +672,7 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 		// 	}
 		// }
 		m, _ := template.LoadAndExec("trigger.group.admin_changed.tmpl", data)
-		if m != nil {
+		if m != nil && l.DebugCheck(event.Group.Code, event.Member.Uin, true) {
 			l.SendMsg(m, mmsg.NewGroupTarget(event.Group.Code))
 		}
 	})
