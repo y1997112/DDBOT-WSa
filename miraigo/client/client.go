@@ -1276,14 +1276,17 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 			} else if wsmsg.SubType == "poke" {
 				if wsmsg.GroupID != 0 {
 					// 群戳一戳事件
+					c.GroupNotifyEvent.dispatch(c, &GroupPokeNotifyEvent{
+						GroupCode: wsmsg.GroupID.ToInt64(),
+						Sender:    wsmsg.UserID.ToInt64(),
+						Receiver:  wsmsg.TargetID.ToInt64(),
+					})
 				} else {
 					// 好友戳一戳事件
-					if wsmsg.TargetID.ToInt64() == c.Uin {
-						c.FriendNotifyEvent.dispatch(c, &FriendPokeNotifyEvent{
-							Sender:   wsmsg.SenderID.ToInt64(),
-							Receiver: wsmsg.TargetID.ToInt64(),
-						})
-					}
+					c.FriendNotifyEvent.dispatch(c, &FriendPokeNotifyEvent{
+						Sender:   wsmsg.UserID.ToInt64(),
+						Receiver: wsmsg.TargetID.ToInt64(),
+					})
 				}
 				// 戳一戳事件（返回示例）
 				// {
