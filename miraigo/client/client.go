@@ -2078,6 +2078,8 @@ func (c *QQClient) reverseConn(mode string) {
 		}
 		c.wsInit(ws, mode)
 		<-c.disconnectChan
+		c.alive = false
+		c.Online.Store(false)
 		logger.Debug("Received disconnect signal, attempting to reconnect...")
 	}
 }
