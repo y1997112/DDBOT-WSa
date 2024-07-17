@@ -1318,7 +1318,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					})
 				} else {
 					sync = true
-					logger.Warnf(memberNotFind, member.Uin)
+					logger.Warnf(memberNotFind, wsmsg.UserID)
 				}
 			} else if wsmsg.NoticeType == "group_ban" {
 				skip := false
