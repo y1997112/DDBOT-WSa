@@ -133,6 +133,7 @@ type QQClient struct {
 	groupListLock sync.Mutex
 	//增加的字段
 	ws                 *websocket.Conn
+	wsWriteLock        sync.Mutex
 	responseCh         map[string]chan *T
 	disconnectChan     chan bool
 	currentEcho        string
@@ -1165,8 +1166,8 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				}
 			} else if wsmsg.NoticeType == "group_increase" {
 				// 根据是否与自身有关来选择性刷新群列表
-				// sync = true
 				if wsmsg.UserID.ToInt64() == c.Uin {
+					sync = true
 					ret, err := c.GetGroupInfo(wsmsg.GroupID.ToInt64())
 					if err == nil {
 						skip := false
@@ -1179,12 +1180,10 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 							}
 						}
 						if !skip {
-							sync = true
 							logger.Debugf("Group %d not found in GroupList, adding it", wsmsg.GroupID.ToInt64())
 							c.GroupList = append(c.GroupList, ret)
 						}
 					} else {
-						sync = true
 						logger.Warnf("Failed to get group info: %v", wsmsg.GroupID)
 					}
 				} else {
@@ -2163,10 +2162,10 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 }
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
+	c.wsWriteLock.Lock()
+	defer c.wsWriteLock.Unlock()
 	if ws != nil {
-		err := ws.WriteMessage(websocket.TextMessage, message)
-		if err != nil {
-			//log.Printf("Failed to send message to WebSocket client: %v", err)
+		if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
 			logger.Errorf("Failed to send message to WebSocket client: %v", err)
 		}
 	}
