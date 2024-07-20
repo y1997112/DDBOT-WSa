@@ -286,7 +286,7 @@ type CardMessage struct {
 		AutoSize any    `json:"autosize"` // string or int
 		Width    int    `json:"width"`
 		Height   int    `json:"height"`
-		Forward  int    `json:"forward"`
+		Forward  any    `json:"forward"` // bool or int
 		CTime    int64  `json:"ctime"`
 		Round    int    `json:"round"`
 		Token    string `json:"token"`
@@ -1321,15 +1321,28 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 				}
 			} else if wsmsg.NoticeType == "group_ban" {
 				skip := false
+				var group *GroupInfo
 				var member *GroupMemberInfo
 				if wsmsg.UserID != 0 {
-					member = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
-				} else {
-					member = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(c.Uin)
-					if member.Permission == Member {
-						wsmsg.UserID = DynamicInt64(c.Uin)
+					group = c.FindGroup(wsmsg.GroupID.ToInt64())
+					if group != nil {
+						member = group.FindMember(wsmsg.UserID.ToInt64())
 					} else {
-						skip = true
+						logger.Warnf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
+					}
+				} else {
+					group = c.FindGroup(wsmsg.GroupID.ToInt64())
+					if group != nil {
+						member = group.FindMember(c.Uin)
+						if member != nil {
+							if member.Permission == Member {
+								wsmsg.UserID = DynamicInt64(c.Uin)
+							} else {
+								skip = true
+							}
+						}
+					} else {
+						logger.Warnf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
 					}
 				}
 				if member != nil {
@@ -2093,7 +2106,7 @@ func (c *QQClient) wsInit(ws *websocket.Conn, mode string) {
 		return NewLocalWindow()
 	})
 	// 刷新信息并启动流控和消息处理
-	go c.RefreshList()
+	//go c.RefreshList()
 	go c.SendLimit()
 	go c.processMessage()
 	if mode == "ws-server" {
@@ -2162,8 +2175,6 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 }
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
-	c.wsWriteLock.Lock()
-	defer c.wsWriteLock.Unlock()
 	if ws != nil {
 		if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
 			logger.Errorf("Failed to send message to WebSocket client: %v", err)
