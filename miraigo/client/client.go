@@ -1516,10 +1516,11 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 				}
 			case "face":
 				faceID := 0
-				if face, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-					faceID, _ = strconv.Atoi(face)
-				} else if face, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-					faceID = int(face)
+				switch contentMap["data"].(map[string]interface{})["id"].(type) {
+				case string:
+					faceID, _ = strconv.Atoi(contentMap["data"].(map[string]interface{})["id"].(string))
+				case float64:
+					faceID = int(contentMap["data"].(map[string]interface{})["id"].(float64))
 				}
 				if isGroupMsg {
 					g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
