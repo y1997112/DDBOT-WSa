@@ -603,7 +603,7 @@ type WebSocketMessage struct {
 	GroupID        DynamicInt64 `json:"group_id"`
 	MessageContent interface{}  `json:"message"`
 	MessageSeq     DynamicInt64 `json:"message_seq"`
-	RawMessage     string       `json:"raw_message"`
+	RawMessage     any          `json:"raw_message"` // struct or string
 	TargetID       DynamicInt64 `json:"target_id"`
 	SenderID       DynamicInt64 `json:"sender_id"`
 	CardOld        string       `json:"card_old"`
