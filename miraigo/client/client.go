@@ -2107,7 +2107,7 @@ func (c *QQClient) wsInit(ws *websocket.Conn, mode string) {
 		return NewLocalWindow()
 	})
 	// 刷新信息并启动流控和消息处理
-	//go c.RefreshList()
+	go c.RefreshList()
 	go c.SendLimit()
 	go c.processMessage()
 	if mode == "ws-server" {
