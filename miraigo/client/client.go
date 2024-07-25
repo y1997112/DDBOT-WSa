@@ -1188,7 +1188,7 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 					}
 				} else {
 					member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
-					if err == nil {
+					if err == nil && member.Group != nil {
 						// 将新成员加入群聊
 						member.Group.Members = append(member.Group.Members, member)
 						// 事件入库
