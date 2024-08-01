@@ -1772,7 +1772,9 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 						Name: video["file"].(string),
 						Uuid: fileId,
 						Size: int32(fileSize),
-						Url:  video["url"].(string),
+					}
+					if video["url"] != nil {
+						msg.Url = video["url"].(string)
 					}
 					if isGroupMsg {
 						g.Elements = append(g.Elements, msg)
