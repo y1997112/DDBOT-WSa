@@ -1680,9 +1680,11 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 								needDec = true
 							} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
 								metaMap = CardMessageMeta{
-									Title: metaData.(map[string]interface{})["nickname"].(string),
-									Desc:  metaData.(map[string]interface{})["title"].(string),
-									Tag:   "视频",
+									Desc: metaData.(map[string]interface{})["title"].(string),
+									Tag:  "视频",
+								}
+								if title, ok = metaData.(map[string]interface{})["nickname"].(string); ok {
+									metaMap.Title = title
 								}
 							} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
 								if channel, ok := metaData.(map[string]interface{})["channel_info"].(map[string]interface{}); ok {
@@ -2179,9 +2181,11 @@ func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, 
 
 func (c *QQClient) sendToWebSocketClient(ws *websocket.Conn, message []byte) {
 	if ws != nil {
+		c.wsWriteLock.Lock()
 		if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
 			logger.Errorf("Failed to send message to WebSocket client: %v", err)
 		}
+		c.wsWriteLock.Unlock()
 	}
 }
 
