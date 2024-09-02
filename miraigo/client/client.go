@@ -764,367 +764,426 @@ func (c *QQClient) handleResponse(p []byte) {
 	}
 }
 
-func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
-	// 处理解析后的消息
-	if wsmsg.MessageType == "group" || wsmsg.MessageType == "private" {
-		if wsmsg.MessageType == "group" {
-			wsMsg := &message.GroupMessage{
-				Id:        int32(wsmsg.MessageID),
-				GroupCode: wsmsg.GroupID.ToInt64(),
-				GroupName: "",
-				Sender: &message.Sender{
-					Uin:      wsmsg.Sender.UserID.ToInt64(),
-					Nickname: wsmsg.Sender.Nickname,
-					CardName: wsmsg.Sender.Card,
-					IsFriend: false,
-				},
-				Time:           int32(wsmsg.Time),
-				OriginalObject: nil,
-			}
-			c.ChatMsgHandler(wsmsg, wsMsg, nil)
-		} else if wsmsg.MessageType == "private" {
-			wsMsg := &message.PrivateMessage{
-				Id:         int32(wsmsg.MessageID),
-				InternalId: 0,
-				Self:       c.Uin,
-				Target:     wsmsg.Sender.UserID.ToInt64(),
-				Time:       int32(wsmsg.Time),
-				Sender: &message.Sender{
-					Uin:      wsmsg.Sender.UserID.ToInt64(),
-					Nickname: wsmsg.Sender.Nickname,
-					CardName: "", // Private message might not have a Card
-					IsFriend: wsmsg.SubType == "friend",
-				},
-			}
-			// 拿到发送自身发送的消息时修改为正确目标
-			if wsmsg.PostType == "message_sent" {
-				wsMsg.Target = int64(wsmsg.TargetID)
-			}
-			c.ChatMsgHandler(wsmsg, nil, wsMsg)
+func (c *QQClient) createGroupMessage(wsmsg WebSocketMessage) *message.GroupMessage {
+	return &message.GroupMessage{
+		Id:        int32(wsmsg.MessageID),
+		GroupCode: wsmsg.GroupID.ToInt64(),
+		GroupName: "",
+		Sender: &message.Sender{
+			Uin:      wsmsg.Sender.UserID.ToInt64(),
+			Nickname: wsmsg.Sender.Nickname,
+			CardName: wsmsg.Sender.Card,
+			IsFriend: false,
+		},
+		Time:           int32(wsmsg.Time),
+		OriginalObject: nil,
+	}
+}
+
+func (c *QQClient) createPrivateMessage(wsmsg WebSocketMessage) *message.PrivateMessage {
+	return &message.PrivateMessage{
+		Id:         int32(wsmsg.MessageID),
+		InternalId: 0,
+		Self:       c.Uin,
+		Target:     wsmsg.Sender.UserID.ToInt64(),
+		Time:       int32(wsmsg.Time),
+		Sender: &message.Sender{
+			Uin:      wsmsg.Sender.UserID.ToInt64(),
+			Nickname: wsmsg.Sender.Nickname,
+			CardName: "", // Private message might not have a Card
+			IsFriend: wsmsg.SubType == "friend",
+		},
+	}
+}
+
+func (c *QQClient) handleGroupAdminNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	var err error
+	group := c.FindGroup(wsmsg.GroupID.ToInt64())
+	member := group.FindMember(wsmsg.UserID.ToInt64())
+	if member != nil {
+		var permission MemberPermission
+		if wsmsg.SubType == "set" {
+			permission = Administrator
+		} else if wsmsg.SubType == "unset" {
+			permission = Member
 		}
-	} else if wsmsg.MessageType == "" {
-		if wsmsg.PostType == "meta_event" {
-			logger.Debugf("收到 元事件 消息：%s: %s", wsmsg.SubType, wsmsg.MetaEventType)
-			// 元事件
-			if wsmsg.MetaEventType == "lifecycle" {
-				// 刷新BOT状态
-				c.Uin = int64(wsmsg.SelfID)
-				c.Online.Store(true)
-				c.alive = true
-			} else if wsmsg.MetaEventType == "heartbeat" {
-				c.Online.Store(wsmsg.Status.Online)
-				c.alive = wsmsg.Status.Good
+		// 群名片更新入库
+		for _, m := range group.Members {
+			if m.Uin == member.Uin {
+				m.Permission = permission
+				break
 			}
-		} else if wsmsg.PostType == "notice" {
-			const memberNotFind = "Failed to get group member info: %v"
-			logger.Infof("收到 通知事件 消息：%s: %s", wsmsg.NoticeType, wsmsg.SubType)
-			// 通知事件
-			sync := false
-			if wsmsg.NoticeType == "group_admin" {
-				// 如果是权限变更，则仅刷新群成员列表
-				// sync = true
-				group := c.FindGroup(wsmsg.GroupID.ToInt64())
-				member := group.FindMember(wsmsg.UserID.ToInt64())
-				if member != nil {
-					var permission MemberPermission
-					if wsmsg.SubType == "set" {
-						permission = Administrator
-					} else if wsmsg.SubType == "unset" {
-						permission = Member
-					}
-					// 群名片更新入库
-					for _, m := range group.Members {
-						if m.Uin == member.Uin {
-							m.Permission = permission
-							break
-						}
-					}
-					c.GroupMemberPermissionChangedEvent.dispatch(c, &MemberPermissionChangedEvent{
-						Group:         group,
-						Member:        member,
-						OldPermission: member.Permission,
-						NewPermission: permission,
-					})
-				} else {
-					sync = true
-					logger.Warnf(memberNotFind, wsmsg.UserID)
-				}
-			} else if wsmsg.NoticeType == "group_increase" {
-				// 根据是否与自身有关来选择性刷新群列表
-				if wsmsg.UserID.ToInt64() == c.Uin {
-					sync = true
-					ret, err := c.GetGroupInfo(wsmsg.GroupID.ToInt64())
-					if err == nil {
-						skip := false
-						for i, group := range c.GroupList {
-							if group.Code == wsmsg.GroupID.ToInt64() {
-								c.GroupList[i] = ret
-								skip = true
-								logger.Debugf("Group %d updated", wsmsg.GroupID.ToInt64())
-								break
-							}
-						}
-						if !skip {
-							logger.Debugf("Group %d not found in GroupList, adding it", wsmsg.GroupID.ToInt64())
-							c.GroupList = append(c.GroupList, ret)
-						}
-					} else {
-						logger.Warnf("Failed to get group info: %v", wsmsg.GroupID)
-					}
-				} else {
-					member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
-					if err == nil && member.Group != nil {
-						// 将新成员加入群聊
-						member.Group.Members = append(member.Group.Members, member)
-						// 事件入库
-						c.GroupMemberJoinEvent.dispatch(c, &MemberJoinGroupEvent{
-							Group:  member.Group,
-							Member: member,
-						})
-					} else {
-						sync = true
-						logger.Warnf(memberNotFind, wsmsg.UserID)
-					}
-				}
-			} else if wsmsg.NoticeType == "group_decrease" {
-				// 自己被踢
-				if wsmsg.SubType == "kick_me" {
-					group := c.FindGroup(wsmsg.GroupID.ToInt64())
-					operator := group.FindMember(wsmsg.OperatorId.ToInt64())
-					if operator != nil {
-						for i, group := range c.GroupList {
-							if group.Code == wsmsg.GroupID.ToInt64() {
-								c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
-								logger.Debugf("Group %d removed from GroupList", wsmsg.GroupID.ToInt64())
-								break
-							}
-						}
-						c.GroupLeaveEvent.dispatch(c, &GroupLeaveEvent{
-							Group:    group,
-							Operator: operator,
-						})
-					} else {
-						logger.Warnf(memberNotFind, wsmsg.OperatorId)
-					}
-				} else {
-					// 其他人退群/被踢
-					// sync = true
-					member := c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
-					if member != nil {
-						operator := member
-						if wsmsg.OperatorId != wsmsg.UserID && wsmsg.OperatorId != 0 {
-							operator = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.OperatorId.ToInt64())
-						}
-						if operator != nil {
-							// 将成员从群聊删除
-							for i, m := range member.Group.Members {
-								if m.Uin == member.Uin {
-									member.Group.Members = append(member.Group.Members[:i], member.Group.Members[i+1:]...)
-									break
-								}
-							}
-							// 事件入库
-							c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
-								Group:    member.Group,
-								Member:   member,
-								Operator: operator,
-							})
-						} else {
-							sync = true
-							logger.Warnf(memberNotFind, wsmsg.OperatorId)
-						}
-					} else {
-						sync = true
-						logger.Warnf(memberNotFind, wsmsg.UserID)
-					}
-				}
-			} else if wsmsg.NoticeType == "friend_add" {
-				// 新增好友事件
-				friend, err := c.GetStrangerInfo(wsmsg.UserID.ToInt64())
-				if err == nil {
-					Friend := &FriendInfo{
-						Uin:      wsmsg.UserID.ToInt64(),
-						Nickname: friend.Nick,
-						Remark:   friend.Remark,
-						FaceId:   0,
-					}
-					// 添加好友
-					c.FriendList = append(c.FriendList, Friend)
-					// 事件入库
-					c.NewFriendEvent.dispatch(c, &NewFriendEvent{Friend})
-				} else {
-					// 刷新好友列表
-					c.ReloadFriendList()
-				}
-				// c.SyncTickerControl(2, WebSocketMessage{}, false)
-			} else if wsmsg.NoticeType == "group_card" {
-				// sync = true
-				member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
-				if err == nil && member.Group != nil {
-					// 群成员名片更新
-					for _, m := range member.Group.Members {
-						if m.Uin == member.Uin {
-							m.CardName = member.CardName
-							break
-						}
-					}
-					// 事件入库
-					c.MemberCardUpdatedEvent.dispatch(c, &MemberCardUpdatedEvent{
-						Group:   member.Group,
-						OldCard: wsmsg.CardOld,
-						Member:  member,
-					})
-				} else {
-					sync = true
-					logger.Warnf(memberNotFind, wsmsg.UserID)
-				}
-			} else if wsmsg.NoticeType == "group_ban" {
-				skip := false
-				var group *GroupInfo
-				var member *GroupMemberInfo
-				if wsmsg.UserID != 0 {
-					group = c.FindGroup(wsmsg.GroupID.ToInt64())
-					if group != nil {
-						member = group.FindMember(wsmsg.UserID.ToInt64())
-					} else {
-						logger.Warnf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
-					}
-				} else {
-					group = c.FindGroup(wsmsg.GroupID.ToInt64())
-					if group != nil {
-						member = group.FindMember(c.Uin)
-						if member != nil {
-							if member.Permission == Member {
-								wsmsg.UserID = DynamicInt64(c.Uin)
-							} else {
-								skip = true
-							}
-						}
-					} else {
-						logger.Warnf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
-					}
-				}
-				if member != nil {
-					if !skip {
-						if wsmsg.Duration > 0 {
-							member.ShutUpTimestamp = time.Now().Add(time.Second * time.Duration(wsmsg.Duration)).Unix()
-						} else {
-							member.ShutUpTimestamp = 0
-						}
-						if wsmsg.Duration == -1 {
-							wsmsg.Duration = 268435455
-						}
-						c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
-							GroupCode:   wsmsg.GroupID.ToInt64(),
-							OperatorUin: wsmsg.OperatorId.ToInt64(),
-							TargetUin:   wsmsg.UserID.ToInt64(),
-							Time:        wsmsg.Duration,
-						})
-					}
-				} else {
-					logger.Warnf(memberNotFind, wsmsg.UserID)
-				}
-			} else if wsmsg.NoticeType == "notify" {
-				if wsmsg.SubType == "poke" {
-					if wsmsg.GroupID != 0 {
-						// 群戳一戳事件
-						c.GroupNotifyEvent.dispatch(c, &GroupPokeNotifyEvent{
-							GroupCode: wsmsg.GroupID.ToInt64(),
-							Sender:    wsmsg.UserID.ToInt64(),
-							Receiver:  wsmsg.TargetID.ToInt64(),
-						})
-					} else {
-						// 好友戳一戳事件
-						c.FriendNotifyEvent.dispatch(c, &FriendPokeNotifyEvent{
-							Sender:   wsmsg.UserID.ToInt64(),
-							Receiver: wsmsg.TargetID.ToInt64(),
-						})
-					}
-				} else if wsmsg.SubType == "title" {
-					c.MemberSpecialTitleUpdatedEvent.dispatch(c, &MemberSpecialTitleUpdatedEvent{
-						GroupCode: wsmsg.GroupID.ToInt64(),
-						Uin:       wsmsg.UserID.ToInt64(),
-						NewTitle:  wsmsg.Title,
-					})
+		}
+		c.GroupMemberPermissionChangedEvent.dispatch(c, &MemberPermissionChangedEvent{
+			Group:         group,
+			Member:        member,
+			OldPermission: member.Permission,
+			NewPermission: permission,
+		})
+	} else {
+		sync = true
+		err = fmt.Errorf("member not found: %v", wsmsg.UserID)
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleGroupIncreaseNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	var err error
+	// 根据是否与自身有关来选择性刷新群列表
+	if wsmsg.UserID.ToInt64() == c.Uin {
+		sync = true
+		ret, err := c.GetGroupInfo(wsmsg.GroupID.ToInt64())
+		if err == nil {
+			skip := false
+			for i, group := range c.GroupList {
+				if group.Code == wsmsg.GroupID.ToInt64() {
+					c.GroupList[i] = ret
+					skip = true
+					logger.Debugf("Group %d updated", wsmsg.GroupID.ToInt64())
+					break
 				}
 			}
-			// 选择性执行上述结果
-			if sync {
-				if g := c.FindGroup(wsmsg.GroupID.ToInt64()); g != nil {
-					c.SyncGroupMembers(wsmsg.GroupID)
-					// c.SyncTickerControl(1, wsmsg, refresh)
+			if !skip {
+				logger.Debugf("Group %d not found in GroupList, adding it", wsmsg.GroupID.ToInt64())
+				c.GroupList = append(c.GroupList, ret)
+			}
+		} else {
+			err = fmt.Errorf("failed to get group info: %v", wsmsg.GroupID)
+		}
+	} else {
+		member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
+		if err == nil && member.Group != nil {
+			// 将新成员加入群聊
+			member.Group.Members = append(member.Group.Members, member)
+			// 事件入库
+			c.GroupMemberJoinEvent.dispatch(c, &MemberJoinGroupEvent{
+				Group:  member.Group,
+				Member: member,
+			})
+		} else {
+			sync = true
+			err = fmt.Errorf("member not found: %v", wsmsg.UserID)
+		}
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleGroupDecreaseNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	var err error
+	if wsmsg.SubType == "kick_me" {
+		group := c.FindGroup(wsmsg.GroupID.ToInt64())
+		operator := group.FindMember(wsmsg.OperatorId.ToInt64())
+		if operator != nil {
+			for i, group := range c.GroupList {
+				if group.Code == wsmsg.GroupID.ToInt64() {
+					c.GroupList = append(c.GroupList[:i], c.GroupList[i+1:]...)
+					logger.Debugf("Group %d removed from GroupList", wsmsg.GroupID.ToInt64())
+					break
 				}
 			}
-		} else if wsmsg.PostType == "request" {
-			const StragngerInfoErr = "Failed to get stranger info: %v"
-			logger.Infof("收到 请求事件 消息: %s: %s", wsmsg.RequestType, wsmsg.SubType)
-			// 请求事件
-			if wsmsg.RequestType == "friend" {
-				friendRequest := NewFriendRequest{
-					RequestId:     time.Now().UnixNano() / 1e6,
-					Message:       wsmsg.Comment,
-					RequesterUin:  wsmsg.UserID.ToInt64(),
-					RequesterNick: "陌生人",
-					Flag:          wsmsg.Flag,
-					client:        c,
+			c.GroupLeaveEvent.dispatch(c, &GroupLeaveEvent{
+				Group:    group,
+				Operator: operator,
+			})
+		} else {
+			err = fmt.Errorf("operator not found: %v", wsmsg.OperatorId)
+		}
+	} else {
+		member := c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.UserID.ToInt64())
+		if member != nil {
+			operator := member
+			if wsmsg.OperatorId != wsmsg.UserID && wsmsg.OperatorId != 0 {
+				operator = c.FindGroup(wsmsg.GroupID.ToInt64()).FindMember(wsmsg.OperatorId.ToInt64())
+			}
+			if operator != nil {
+				// 将成员从群聊删除
+				for i, m := range member.Group.Members {
+					if m.Uin == member.Uin {
+						member.Group.Members = append(member.Group.Members[:i], member.Group.Members[i+1:]...)
+						break
+					}
 				}
-				info, err := c.GetStrangerInfo(friendRequest.RequesterUin)
-				if err == nil {
-					friendRequest.RequesterNick = info.Nick
+				// 事件入库
+				c.GroupMemberLeaveEvent.dispatch(c, &MemberLeaveGroupEvent{
+					Group:    member.Group,
+					Member:   member,
+					Operator: operator,
+				})
+			} else {
+				sync = true
+				err = fmt.Errorf("operator not found: %v", wsmsg.OperatorId)
+			}
+		} else {
+			sync = true
+			err = fmt.Errorf("member not found: %v", wsmsg.UserID)
+		}
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleFriendAddNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	var err error
+	friend, err := c.GetStrangerInfo(wsmsg.UserID.ToInt64())
+	if err == nil {
+		Friend := &FriendInfo{
+			Uin:      wsmsg.UserID.ToInt64(),
+			Nickname: friend.Nick,
+			Remark:   friend.Remark,
+			FaceId:   0,
+		}
+		c.FriendList = append(c.FriendList, Friend)
+		c.NewFriendEvent.dispatch(c, &NewFriendEvent{Friend})
+	} else {
+		sync = true
+		err = fmt.Errorf("Failed to get friend info: %v", err)
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleGroupCardNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	var err error
+	member, err := c.GetGroupMemberInfo(wsmsg.GroupID.ToInt64(), wsmsg.UserID.ToInt64())
+	if err == nil && member.Group != nil {
+		// 群成员名片更新
+		for _, m := range member.Group.Members {
+			if m.Uin == member.Uin {
+				m.CardName = member.CardName
+				break
+			}
+		}
+		c.MemberCardUpdatedEvent.dispatch(c, &MemberCardUpdatedEvent{
+			Group:   member.Group,
+			OldCard: wsmsg.CardOld,
+			Member:  member,
+		})
+	} else {
+		sync = true
+		err = fmt.Errorf("member not found: %v", wsmsg.UserID)
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleGroupBanNotice(wsmsg WebSocketMessage) (bool, error) {
+	sync := false
+	skip := false
+	var err error
+	var group *GroupInfo
+	var member *GroupMemberInfo
+	if wsmsg.UserID != 0 {
+		group = c.FindGroup(wsmsg.GroupID.ToInt64())
+		if group != nil {
+			member = group.FindMember(wsmsg.UserID.ToInt64())
+		} else {
+			sync = true
+			err = fmt.Errorf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
+		}
+	} else {
+		group = c.FindGroup(wsmsg.GroupID.ToInt64())
+		if group != nil {
+			member = group.FindMember(c.Uin)
+			if member != nil {
+				if member.Permission == Member {
+					wsmsg.UserID = DynamicInt64(c.Uin)
 				} else {
-					logger.Warnf(StragngerInfoErr, err)
-				}
-				// 好友申请
-				c.NewFriendRequestEvent.dispatch(c, &friendRequest)
-			}
-			if wsmsg.RequestType == "group" {
-				if wsmsg.SubType == "add" {
-					// 加群申请
-					groupRequest := UserJoinGroupRequest{
-						RequestId:     time.Now().UnixNano() / 1e6,
-						Message:       wsmsg.Comment,
-						RequesterUin:  wsmsg.UserID.ToInt64(),
-						RequesterNick: "陌生人",
-						GroupCode:     wsmsg.GroupID.ToInt64(),
-						GroupName:     "未知",
-						Flag:          wsmsg.Flag,
-						client:        c,
-					}
-					user, err := c.GetStrangerInfo(groupRequest.RequesterUin)
-					if err == nil {
-						groupRequest.RequesterNick = user.Nick
-					} else {
-						logger.Warnf(StragngerInfoErr, err)
-					}
-					groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
-					if groupInfo != nil {
-						groupRequest.GroupName = groupInfo.Name
-					}
-					c.UserWantJoinGroupEvent.dispatch(c, &groupRequest)
-				} else if wsmsg.SubType == "invite" {
-					// 群邀请
-					groupRequest := GroupInvitedRequest{
-						RequestId:   time.Now().UnixNano() / 1e6,
-						InvitorUin:  wsmsg.UserID.ToInt64(),
-						InvitorNick: "陌生人",
-						GroupCode:   wsmsg.GroupID.ToInt64(),
-						GroupName:   "未知",
-						Flag:        wsmsg.Flag,
-						client:      c,
-					}
-					user, err := c.GetStrangerInfo(groupRequest.InvitorUin)
-					if err == nil {
-						groupRequest.InvitorNick = user.Nick
-					} else {
-						logger.Warnf(StragngerInfoErr, err)
-					}
-					groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
-					if groupInfo != nil {
-						groupRequest.GroupName = groupInfo.Name
-					}
-					c.GroupInvitedEvent.dispatch(c, &groupRequest)
+					skip = true
 				}
 			}
+		} else {
+			sync = true
+			err = fmt.Errorf("Failed to find group: %d", wsmsg.GroupID.ToInt64())
+		}
+	}
+	if member != nil {
+		if !skip {
+			if wsmsg.Duration > 0 {
+				member.ShutUpTimestamp = time.Now().Add(time.Second * time.Duration(wsmsg.Duration)).Unix()
+			} else {
+				member.ShutUpTimestamp = 0
+			}
+			if wsmsg.Duration == -1 {
+				wsmsg.Duration = 268435455
+			}
+			c.GroupMuteEvent.dispatch(c, &GroupMuteEvent{
+				GroupCode:   wsmsg.GroupID.ToInt64(),
+				OperatorUin: wsmsg.OperatorId.ToInt64(),
+				TargetUin:   wsmsg.UserID.ToInt64(),
+				Time:        wsmsg.Duration,
+			})
+		}
+	} else {
+		sync = true
+		err = fmt.Errorf("member not found: %v", wsmsg.UserID)
+	}
+	return sync, err
+}
+
+func (c *QQClient) handleNotifyNotice(wsmsg WebSocketMessage) (bool, error) {
+	if wsmsg.SubType == "poke" {
+		if wsmsg.GroupID != 0 {
+			c.GroupNotifyEvent.dispatch(c, &GroupPokeNotifyEvent{
+				GroupCode: wsmsg.GroupID.ToInt64(),
+				Sender:    wsmsg.UserID.ToInt64(),
+				Receiver:  wsmsg.TargetID.ToInt64(),
+			})
+		} else {
+			c.FriendNotifyEvent.dispatch(c, &FriendPokeNotifyEvent{
+				Sender:   wsmsg.UserID.ToInt64(),
+				Receiver: wsmsg.TargetID.ToInt64(),
+			})
+		}
+	} else if wsmsg.SubType == "title" {
+		c.MemberSpecialTitleUpdatedEvent.dispatch(c, &MemberSpecialTitleUpdatedEvent{
+			GroupCode: wsmsg.GroupID.ToInt64(),
+			Uin:       wsmsg.UserID.ToInt64(),
+			NewTitle:  wsmsg.Title,
+		})
+	}
+	return false, nil
+}
+
+func (c *QQClient) handleRequestEvent(wsmsg WebSocketMessage) {
+	const StragngerInfoErr = "Failed to get stranger info: %v"
+	switch wsmsg.RequestType {
+	case "friend":
+		logger.Infof("收到 好友请求 事件: %s: %s", wsmsg.RequestType, wsmsg.SubType)
+		friendRequest := NewFriendRequest{
+			RequestId:     time.Now().UnixNano() / 1e6,
+			Message:       wsmsg.Comment,
+			RequesterUin:  wsmsg.UserID.ToInt64(),
+			RequesterNick: "陌生人",
+			Flag:          wsmsg.Flag,
+			client:        c,
+		}
+		info, err := c.GetStrangerInfo(friendRequest.RequesterUin)
+		if err == nil {
+			friendRequest.RequesterNick = info.Nick
+		} else {
+			logger.Warnf(StragngerInfoErr, err)
+		}
+		c.NewFriendRequestEvent.dispatch(c, &friendRequest)
+	case "group":
+		if wsmsg.SubType == "add" {
+			logger.Infof("收到 入群申请 事件: %s: %s", wsmsg.RequestType, wsmsg.SubType)
+			groupRequest := UserJoinGroupRequest{
+				RequestId:     time.Now().UnixNano() / 1e6,
+				Message:       wsmsg.Comment,
+				RequesterUin:  wsmsg.UserID.ToInt64(),
+				RequesterNick: "陌生人",
+				GroupCode:     wsmsg.GroupID.ToInt64(),
+				GroupName:     "未知",
+				Flag:          wsmsg.Flag,
+				client:        c,
+			}
+			user, err := c.GetStrangerInfo(groupRequest.RequesterUin)
+			if err == nil {
+				groupRequest.RequesterNick = user.Nick
+			} else {
+				logger.Warnf(StragngerInfoErr, err)
+			}
+			groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
+			if groupInfo != nil {
+				groupRequest.GroupName = groupInfo.Name
+			}
+			c.UserWantJoinGroupEvent.dispatch(c, &groupRequest)
+		} else if wsmsg.SubType == "invite" {
+			logger.Infof("收到 邀请入群 事件: %s: %s", wsmsg.RequestType, wsmsg.SubType)
+			groupRequest := GroupInvitedRequest{
+				RequestId:   time.Now().UnixNano() / 1e6,
+				InvitorUin:  wsmsg.UserID.ToInt64(),
+				InvitorNick: "陌生人",
+				GroupCode:   wsmsg.GroupID.ToInt64(),
+				GroupName:   "未知",
+				Flag:        wsmsg.Flag,
+				client:      c,
+			}
+			user, err := c.GetStrangerInfo(groupRequest.InvitorUin)
+			if err == nil {
+				groupRequest.InvitorNick = user.Nick
+			} else {
+				logger.Warnf(StragngerInfoErr, err)
+			}
+			groupInfo := c.FindGroupByUin(groupRequest.GroupCode)
+			if groupInfo != nil {
+				groupRequest.GroupName = groupInfo.Name
+			}
+			c.GroupInvitedEvent.dispatch(c, &groupRequest)
+		}
+	default:
+		logger.Warnf("未知 请求事件 类型: %s", wsmsg.RequestType)
+	}
+}
+
+func (c *QQClient) handleMetaEvent(wsmsg WebSocketMessage) {
+	switch wsmsg.MetaEventType {
+	case "lifecycle":
+		c.Uin = int64(wsmsg.SelfID)
+		c.Online.Store(true)
+		c.alive = true
+	case "heartbeat":
+		c.Online.Store(wsmsg.Status.Online)
+		c.alive = wsmsg.Status.Good
+	default:
+		logger.Warnf("未知 元事件 类型: %s", wsmsg.MetaEventType)
+	}
+}
+
+func (c *QQClient) handleNoticeEvent(wsmsg WebSocketMessage) {
+	wsNoticeHeaders := map[string]func(wsmsg WebSocketMessage) (bool, error){
+		"group_admin":    c.handleGroupAdminNotice,
+		"group_increase": c.handleGroupIncreaseNotice,
+		"group_decrease": c.handleGroupDecreaseNotice,
+		"friend_add":     c.handleFriendAddNotice,
+		"group_card":     c.handleGroupCardNotice,
+		"group_ban":      c.handleGroupBanNotice,
+		"notify":         c.handleNotifyNotice,
+	}
+	sync := false
+	var err error
+	if handler, exists := wsNoticeHeaders[wsmsg.NoticeType]; exists {
+		logger.Infof("收到 通知事件 消息：%s: %s", wsmsg.NoticeType, wsmsg.SubType)
+		sync, err = handler(wsmsg)
+		if err != nil {
+			logger.Warnf(err.Error())
+		}
+	} else {
+		logger.Warnf("未知 通知事件 类型: %s", wsmsg.NoticeType)
+	}
+	if sync {
+		if wsmsg.NoticeType == "friend_add" {
+			c.ReloadFriendList()
+		}
+		if g := c.FindGroup(wsmsg.GroupID.ToInt64()); g != nil {
+			c.SyncGroupMembers(wsmsg.GroupID)
+		}
+	}
+}
+
+func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
+	switch wsmsg.MessageType {
+	case "group":
+		wsMsg := c.createGroupMessage(wsmsg)
+		c.ChatMsgHandler(wsmsg, wsMsg, nil)
+	case "private":
+		wsMsg := c.createPrivateMessage(wsmsg)
+		if wsmsg.PostType == "message_sent" {
+			wsMsg.Target = int64(wsmsg.TargetID)
+		}
+		c.ChatMsgHandler(wsmsg, nil, wsMsg)
+	default:
+		switch wsmsg.PostType {
+		case "meta_event":
+			c.handleMetaEvent(wsmsg)
+		case "notice":
+			c.handleNoticeEvent(wsmsg)
+		case "request":
+			c.handleRequestEvent(wsmsg)
+		default:
+			logger.Warnf("未知 上报 类型: %s", wsmsg.NoticeType)
 		}
 	}
 }
