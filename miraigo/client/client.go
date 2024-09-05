@@ -25,7 +25,6 @@ import (
 	"github.com/Mrs4s/MiraiGo/binary"
 	"github.com/Mrs4s/MiraiGo/client/internal/auth"
 	"github.com/Mrs4s/MiraiGo/client/internal/highway"
-	"github.com/Mrs4s/MiraiGo/client/internal/intern"
 	"github.com/Mrs4s/MiraiGo/client/internal/network"
 	"github.com/Mrs4s/MiraiGo/client/internal/oicq"
 	"github.com/Mrs4s/MiraiGo/client/pb/msg"
@@ -2293,11 +2292,10 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 }
 
 func (c *QQClient) GetGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error) {
-	interner := intern.NewStringInterner()
-	return c.getGroupMembers(group, interner)
+	return c.getGroupMembers(group)
 }
 
-func (c *QQClient) getGroupMembers(group *GroupInfo, interner *intern.StringInterner) ([]*GroupMemberInfo, error) {
+func (c *QQClient) getGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error) {
 	data, err := c.SendApi("get_group_member_list", map[string]any{
 		"group_id": group.Uin,
 	})
