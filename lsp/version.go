@@ -10,7 +10,7 @@ import (
 
 var (
 	CommitId  = "UNKNOWN"
-	BuildTime = "2024-08-01 23:54:00"
+	BuildTime = "2024-09-06 10:33:00"
 	Tags      = "fix_A028"
 )
 

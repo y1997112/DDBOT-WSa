@@ -1269,11 +1269,28 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessag
 				}
 			case "mface":
 				if mface, ok := contentMap["data"].(map[string]interface{}); ok {
-					tabId, _ := strconv.Atoi(mface["emoji_package_id"].(string))
+					parseTabId := func(rawId any) int32 {
+						switch v := rawId.(type) {
+						case string:
+							if id, err := strconv.Atoi(v); err == nil {
+								return int32(id)
+							} else {
+								return 0
+							}
+						case float64:
+							return int32(v)
+						default:
+							return 0
+						}
+					}
+					var tabId int32
+					if rawTabId, exists := mface["emoji_package_id"]; exists {
+						tabId = parseTabId(rawTabId)
+					}
 					msg := &message.MarketFaceElement{
 						Name:       "",
 						FaceId:     []byte(mface["emoji_id"].(string)),
-						TabId:      int32(tabId),
+						TabId:      tabId,
 						MediaType:  2,
 						EncryptKey: []byte(mface["key"].(string)),
 					}
