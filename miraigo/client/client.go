@@ -1166,13 +1166,13 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 	switch wsmsg.MessageType {
 	case "group":
 		wsMsg := c.createGroupMessage(wsmsg)
-		c.ChatMsgHandler(wsmsg, wsMsg, nil)
+		c.ChatMsgHandler(wsmsg, wsMsg)
 	case "private":
 		wsMsg := c.createPrivateMessage(wsmsg)
 		if wsmsg.PostType == "message_sent" {
 			wsMsg.Target = int64(wsmsg.TargetID)
 		}
-		c.ChatMsgHandler(wsmsg, nil, wsMsg)
+		c.ChatMsgHandler(wsmsg, wsMsg)
 	default:
 		switch wsmsg.PostType {
 		case "meta_event":
@@ -1187,382 +1187,399 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 	}
 }
 
-func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, g *message.GroupMessage, pMsg *message.PrivateMessage) {
-	isGroupMsg := true
-	var err error
-	if wsmsg.MessageType == "private" {
-		isGroupMsg = false
+func handleMsgContent(MessageContent string, elements []message.IMessageElement) {
+	// 替换字符串中的"\/"为"/"
+	MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
+	// 使用extractAtElements函数从wsmsg.Message中提取At元素
+	atElements := extractAtElements(MessageContent)
+	// 将提取的At元素和文本元素都添加到g.Elements
+	elements = append(elements, &message.TextElement{Content: MessageContent})
+	for _, elem := range atElements {
+		elements = append(elements, elem)
 	}
-	if MessageContent, ok := wsmsg.MessageContent.(string); ok {
-		// 替换字符串中的"\/"为"/"
-		MessageContent = strings.Replace(MessageContent, "\\/", "/", -1)
-		// 使用extractAtElements函数从wsmsg.Message中提取At元素
-		atElements := extractAtElements(MessageContent)
-		// 将提取的At元素和文本元素都添加到g.Elements
-		if isGroupMsg {
-			g.Elements = append(g.Elements, &message.TextElement{Content: MessageContent})
-			for _, elem := range atElements {
-				g.Elements = append(g.Elements, elem)
-			}
-		} else {
-			pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: MessageContent})
-			for _, elem := range atElements {
-				pMsg.Elements = append(pMsg.Elements, elem)
-			}
+}
+
+type miraiMessage interface {
+	GetSender() *message.Sender
+	GetTime() int32
+	GetElements() []message.IMessageElement
+}
+
+// 包装 GroupMessage
+type GroupMessageWrapper struct {
+	*message.GroupMessage
+}
+
+func (g *GroupMessageWrapper) GetSender() *message.Sender {
+	return g.Sender
+}
+
+func (g *GroupMessageWrapper) GetTime() int32 {
+	return g.Time
+}
+
+func (g *GroupMessageWrapper) GetElements() []message.IMessageElement {
+	return g.Elements
+}
+
+// 包装 PrivateMessage
+type PrivateMessageWrapper struct {
+	*message.PrivateMessage
+}
+
+func (p *PrivateMessageWrapper) GetSender() *message.Sender {
+	return p.Sender
+}
+
+func (p *PrivateMessageWrapper) GetTime() int32 {
+	return p.Time
+}
+
+func (p *PrivateMessageWrapper) GetElements() []message.IMessageElement {
+	return p.Elements
+}
+
+// 统一处理函数
+func createReplyElement(msg miraiMessage, replySeq int, groupID int64) *message.ReplyElement {
+	return &message.ReplyElement{
+		ReplySeq: int32(replySeq),
+		Sender:   msg.GetSender().Uin,
+		GroupID:  groupID,
+		Time:     msg.GetTime(),
+		Elements: msg.GetElements(),
+	}
+}
+
+func handleMixMsg(contentArray []interface{}, miraiMsg any, isGroupMsg bool) []message.IMessageElement {
+	var err error
+	var elements []message.IMessageElement
+	for _, contentInterface := range contentArray {
+		contentMap, ok := contentInterface.(map[string]interface{})
+		if !ok {
+			continue
 		}
-	} else if contentArray, ok := wsmsg.MessageContent.([]interface{}); ok {
-		for _, contentInterface := range contentArray {
-			contentMap, ok := contentInterface.(map[string]interface{})
-			if !ok {
-				continue
+		contentType, ok := contentMap["type"].(string)
+		if !ok {
+			continue
+		}
+		switch contentType {
+		case "text":
+			text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
+			if ok {
+				// 替换字符串中的"\/"为"/"
+				text = strings.Replace(text, "\\/", "/", -1)
+				elements = append(elements, &message.TextElement{Content: text})
 			}
-			contentType, ok := contentMap["type"].(string)
-			if !ok {
-				continue
-			}
-			switch contentType {
-			case "text":
-				text, ok := contentMap["data"].(map[string]interface{})["text"].(string)
-				if ok {
-					// 替换字符串中的"\/"为"/"
-					text = strings.Replace(text, "\\/", "/", -1)
-					if isGroupMsg {
-						g.Elements = append(g.Elements, &message.TextElement{Content: text})
-					} else {
-						pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-					}
-				}
-			case "at":
-				if data, ok := contentMap["data"].(map[string]interface{}); ok {
-					var qq int64
-					if qqData, ok := data["qq"].(string); ok {
-						if qqData != "all" {
-							qq, err = strconv.ParseInt(qqData, 10, 64)
-							if err != nil {
-								logger.Errorf("Failed to parse qq: %v", err)
-								continue
-							}
-						} else {
-							qq = 0
+		case "at":
+			if data, ok := contentMap["data"].(map[string]interface{}); ok {
+				var qq int64
+				var senderName string
+				if qqData, ok := data["qq"].(string); ok {
+					if qqData != "all" {
+						qq, err = strconv.ParseInt(qqData, 10, 64)
+						if err != nil {
+							logger.Errorf("Failed to parse qq: %v", err)
+							continue
 						}
-					} else if qqData, ok := data["qq"].(int64); ok {
-						qq = qqData
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, &message.AtElement{Target: qq, Display: g.Sender.DisplayName()})
 					} else {
-						pMsg.Elements = append(pMsg.Elements, &message.AtElement{Target: qq, Display: pMsg.Sender.DisplayName()})
+						qq = 0
 					}
-				}
-			case "face":
-				faceID := 0
-				switch contentMap["data"].(map[string]interface{})["id"].(type) {
-				case string:
-					faceID, _ = strconv.Atoi(contentMap["data"].(map[string]interface{})["id"].(string))
-				case float64:
-					faceID = int(contentMap["data"].(map[string]interface{})["id"].(float64))
+				} else if qqData, ok := data["qq"].(int64); ok {
+					qq = qqData
 				}
 				if isGroupMsg {
-					g.Elements = append(g.Elements, &message.FaceElement{Index: int32(faceID)})
+					senderName = miraiMsg.(*message.GroupMessage).Sender.DisplayName()
 				} else {
-					pMsg.Elements = append(pMsg.Elements, &message.FaceElement{Index: int32(faceID)})
+					senderName = miraiMsg.(*message.PrivateMessage).Sender.DisplayName()
 				}
-			case "mface":
-				if mface, ok := contentMap["data"].(map[string]interface{}); ok {
-					parseTabId := func(rawId any) int32 {
-						switch v := rawId.(type) {
-						case string:
-							if id, err := strconv.Atoi(v); err == nil {
-								return int32(id)
-							} else {
-								return 0
-							}
-						case float64:
-							return int32(v)
-						default:
+				elements = append(elements, &message.AtElement{Target: qq, Display: senderName})
+			}
+		case "face":
+			faceID := 0
+			switch contentMap["data"].(map[string]interface{})["id"].(type) {
+			case string:
+				faceID, _ = strconv.Atoi(contentMap["data"].(map[string]interface{})["id"].(string))
+			case float64:
+				faceID = int(contentMap["data"].(map[string]interface{})["id"].(float64))
+			}
+			elements = append(elements, &message.FaceElement{Index: int32(faceID)})
+		case "mface":
+			if mface, ok := contentMap["data"].(map[string]interface{}); ok {
+				parseTabId := func(rawId any) int32 {
+					switch v := rawId.(type) {
+					case string:
+						if id, err := strconv.Atoi(v); err == nil {
+							return int32(id)
+						} else {
 							return 0
 						}
-					}
-					var tabId int32
-					if rawTabId, exists := mface["emoji_package_id"]; exists {
-						tabId = parseTabId(rawTabId)
-					}
-					msg := &message.MarketFaceElement{
-						Name:       "",
-						FaceId:     []byte(mface["emoji_id"].(string)),
-						TabId:      tabId,
-						MediaType:  2,
-						EncryptKey: []byte(mface["key"].(string)),
-					}
-					if summary, ok := mface["summary"].(string); ok {
-						msg.Name = summary
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, msg)
-					} else {
-						pMsg.Elements = append(pMsg.Elements, msg)
+					case float64:
+						return int32(v)
+					default:
+						return 0
 					}
 				}
-			case "image":
-				image, ok := contentMap["data"].(map[string]interface{})
-				if ok {
-					size := 0
-					if tmp, ok := image["file_size"].(string); ok {
-						size, err = strconv.Atoi(tmp)
+				var tabId int32
+				if rawTabId, exists := mface["emoji_package_id"]; exists {
+					tabId = parseTabId(rawTabId)
+				}
+				msg := &message.MarketFaceElement{
+					Name:       "",
+					FaceId:     []byte(mface["emoji_id"].(string)),
+					TabId:      tabId,
+					MediaType:  2,
+					EncryptKey: []byte(mface["key"].(string)),
+				}
+				if summary, ok := mface["summary"].(string); ok {
+					msg.Name = summary
+				}
+				elements = append(elements, msg)
+			}
+		case "image":
+			image, ok := contentMap["data"].(map[string]interface{})
+			if ok {
+				size := 0
+				if tmp, ok := image["file_size"].(string); ok {
+					size, err = strconv.Atoi(tmp)
+				}
+				if contentMap["subType"] == nil {
+					if isGroupMsg {
+						msg := &message.GroupImageElement{
+							Size: int32(size),
+							Url:  image["url"].(string),
+						}
+						elements = append(elements, msg)
+					} else {
+						msg := &message.FriendImageElement{
+							Size: int32(size),
+							Url:  image["url"].(string),
+						}
+						elements = append(elements, msg)
 					}
-					if contentMap["subType"] == nil {
+				} else {
+					if contentMap["subType"].(float64) == 1.0 {
+						msg := &message.MarketFaceElement{
+							Name:       "[图片表情]",
+							FaceId:     []byte(image["file"].(string)),
+							SubType:    3,
+							TabId:      0,
+							MediaType:  2,
+							EncryptKey: []byte("0"),
+						}
+						elements = append(elements, msg)
+					} else {
 						if isGroupMsg {
 							msg := &message.GroupImageElement{
 								Size: int32(size),
 								Url:  image["url"].(string),
 							}
-							g.Elements = append(g.Elements, msg)
+							elements = append(elements, msg)
 						} else {
 							msg := &message.FriendImageElement{
 								Size: int32(size),
 								Url:  image["url"].(string),
 							}
-							pMsg.Elements = append(pMsg.Elements, msg)
-						}
-					} else {
-						if contentMap["subType"].(float64) == 1.0 {
-							msg := &message.MarketFaceElement{
-								Name:       "[图片表情]",
-								FaceId:     []byte(image["file"].(string)),
-								SubType:    3,
-								TabId:      0,
-								MediaType:  2,
-								EncryptKey: []byte("0"),
-							}
-							if isGroupMsg {
-								g.Elements = append(g.Elements, msg)
-							} else {
-								pMsg.Elements = append(pMsg.Elements, msg)
-							}
-						} else {
-							if isGroupMsg {
-								msg := &message.GroupImageElement{
-									Size: int32(size),
-									Url:  image["url"].(string),
-								}
-								g.Elements = append(g.Elements, msg)
-							} else {
-								msg := &message.FriendImageElement{
-									Size: int32(size),
-									Url:  image["url"].(string),
-								}
-								pMsg.Elements = append(pMsg.Elements, msg)
-							}
+							elements = append(elements, msg)
 						}
 					}
 				}
-			case "reply":
-				replySeq := 0
-				if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
-					replySeq, _ = strconv.Atoi(replyID)
-				} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
-					replySeq = int(replyID)
-				}
-
-				if isGroupMsg {
-					msg := &message.ReplyElement{
-						ReplySeq: int32(replySeq),
-						Sender:   g.Sender.Uin,
-						GroupID:  g.GroupCode,
-						Time:     g.Time,
-						Elements: g.Elements,
-					}
-					g.Elements = append(g.Elements, msg)
-				} else {
-					msg := &message.ReplyElement{
-						ReplySeq: int32(replySeq),
-						Sender:   pMsg.Sender.Uin,
-						Time:     pMsg.Time,
-						Elements: pMsg.Elements,
-					}
-					pMsg.Elements = append(pMsg.Elements, msg)
-				}
-			case "record":
-				record, ok := contentMap["data"].(map[string]interface{})
-				if ok {
-					fileSize := 0
-					filePath := ""
-					if size, ok := record["file_size"].(string); ok {
-						fileSize, _ = strconv.Atoi(size)
-					}
-					if path, ok := record["path"].(string); ok {
-						filePath = path
-					}
-					msg := &message.VoiceElement{
-						Name: record["file"].(string),
-						Url:  filePath,
-						Size: int32(fileSize),
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, msg)
-					} else {
-						pMsg.Elements = append(pMsg.Elements, msg)
-					}
-				}
-			case "json":
-				// 处理json消息
-				if card, ok := contentMap["data"].(map[string]interface{}); ok {
-					switch card["data"].(type) {
-					case string:
-						var j CardMessage
-						err := json.Unmarshal([]byte(card["data"].(string)), &j)
-						if err != nil {
-							logger.Errorf("Failed to parse card message: %v", err)
-							continue
-						}
-						needDec := false
-						tag, title, desc, text := "", "", "", "[卡片]["
-						if meta, ok := j.Meta.(map[string]interface{}); ok {
-							var metaData any
-							var metaMap = CardMessageMeta{
-								Title: "未知",
-								Desc:  "未知",
-								Tag:   "未知",
-							}
-							if metaData, ok = meta["news"].(map[string]interface{}); ok {
-								needDec = true
-							} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
-								needDec = true
-							} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
-								needDec = true
-								if host, ok := metaData.(map[string]interface{})["host"].(map[string]interface{}); ok {
-									metaMap.Tag = host["nick"].(string)
-								}
-							} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
-								needDec = true
-							} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
-								metaMap = CardMessageMeta{
-									Desc: metaData.(map[string]interface{})["title"].(string),
-									Tag:  "视频",
-								}
-								if title, ok = metaData.(map[string]interface{})["nickname"].(string); ok {
-									metaMap.Title = title
-								}
-							} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
-								if channel, ok := metaData.(map[string]interface{})["channel_info"].(map[string]interface{}); ok {
-									feedTitle := "未知"
-									if feedTitle, ok = metaData.(map[string]interface{})["feed"].(map[string]interface{})["title"].(map[string]interface{})["contents"].([]interface{})[0].(map[string]interface{})["text_content"].(map[string]interface{})["text"].(string); !ok {
-										logger.Warnf("Failed to parse feed title")
-									}
-									metaMap = CardMessageMeta{
-										Title: channel["channel_name"].(string),
-										Desc:  feedTitle,
-										Tag:   "频道",
-									}
-								} else {
-									needDec = true
-								}
-							}
-							if needDec {
-								b, _ := json.Marshal(metaData)
-								_ = json.Unmarshal(b, &metaMap)
-							}
-							title = metaMap.Title
-							desc = metaMap.Desc
-							tag = metaMap.Tag
-							text += tag + "][" + title + "][" + desc + "]"
-							if isGroupMsg {
-								g.Elements = append(g.Elements, &message.LightAppElement{Content: text})
-							} else {
-								pMsg.Elements = append(pMsg.Elements, &message.LightAppElement{Content: text})
-							}
-						}
-					default:
-						logger.Errorf("Unknown card message type: %v", card)
-					}
-				}
-			case "file":
-				file, ok := contentMap["data"].(map[string]interface{})
-				if ok {
-					var fileSize int64
-					switch file["file_size"].(type) {
-					case string:
-						fileSize, _ = strconv.ParseInt(file["file_size"].(string), 10, 64)
-					case int64:
-						fileSize = file["file_size"].(int64)
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, &message.GroupFileElement{
-							Name: file["file"].(string),
-							Size: fileSize,
-							Path: file["path"].(string),
-						})
-					} else {
-						pMsg.Elements = append(pMsg.Elements, &message.FriendFileElement{
-							Name: file["file"].(string),
-							Size: fileSize,
-							Path: file["path"].(string),
-						})
-						// pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-					}
-				}
-
-			case "forward":
-				forward, ok := contentMap["data"].(map[string]interface{})
-				if ok {
-					text := "[合并转发]" // + forward["id"].(string)
-					msg := &message.ForwardElement{
-						Content: text,
-						ResId:   forward["id"].(string),
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, msg)
-					} else {
-						pMsg.Elements = append(pMsg.Elements, msg)
-					}
-				}
-			case "video":
-				video, ok := contentMap["data"].(map[string]interface{})
-				if ok {
-					fileSize := 0
-					var fileId []byte
-					if video["file_size"] != nil {
-						fileSize, _ = strconv.Atoi(video["file_size"].(string))
-					}
-					if video["file_id"] != nil {
-						fileId = []byte(video["file_id"].(string))
-					}
-					msg := &message.ShortVideoElement{
-						Name: video["file"].(string),
-						Uuid: fileId,
-						Size: int32(fileSize),
-					}
-					if video["url"] != nil {
-						msg.Url = video["url"].(string)
-					}
-					if isGroupMsg {
-						g.Elements = append(g.Elements, msg)
-					} else {
-						pMsg.Elements = append(pMsg.Elements, msg)
-					}
-				}
-			case "markdown":
-				text := "[Markdown]"
-				if isGroupMsg {
-					g.Elements = append(g.Elements, &message.TextElement{Content: text})
-				} else {
-					pMsg.Elements = append(pMsg.Elements, &message.TextElement{Content: text})
-				}
-			default:
-				logger.Warnf("Unknown content type: %s", contentType)
 			}
+		case "reply":
+			replySeq := 0
+			if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(string); ok {
+				replySeq, _ = strconv.Atoi(replyID)
+			} else if replyID, ok := contentMap["data"].(map[string]interface{})["id"].(float64); ok {
+				replySeq = int(replyID)
+			}
+			var Msg miraiMessage
+			GroupCode := int64(0)
+			if isGroupMsg {
+				GroupCode = miraiMsg.(*message.GroupMessage).GroupCode
+				Msg = &GroupMessageWrapper{miraiMsg.(*message.GroupMessage)}
+			} else {
+				Msg = &PrivateMessageWrapper{miraiMsg.(*message.PrivateMessage)}
+			}
+			msg := createReplyElement(Msg, replySeq, GroupCode)
+			elements = append(elements, msg)
+		case "record":
+			record, ok := contentMap["data"].(map[string]interface{})
+			if ok {
+				fileSize := 0
+				filePath := ""
+				if size, ok := record["file_size"].(string); ok {
+					fileSize, _ = strconv.Atoi(size)
+				}
+				if path, ok := record["path"].(string); ok {
+					filePath = path
+				}
+				msg := &message.VoiceElement{
+					Name: record["file"].(string),
+					Url:  filePath,
+					Size: int32(fileSize),
+				}
+				elements = append(elements, msg)
+			}
+		case "json":
+			// 处理json消息
+			if card, ok := contentMap["data"].(map[string]interface{}); ok {
+				switch card["data"].(type) {
+				case string:
+					var j CardMessage
+					err := json.Unmarshal([]byte(card["data"].(string)), &j)
+					if err != nil {
+						logger.Errorf("Failed to parse card message: %v", err)
+						continue
+					}
+					needDec := false
+					tag, title, desc, text := "", "", "", "[卡片]["
+					if meta, ok := j.Meta.(map[string]interface{}); ok {
+						var metaData any
+						var metaMap = CardMessageMeta{
+							Title: "未知",
+							Desc:  "未知",
+							Tag:   "未知",
+						}
+						if metaData, ok = meta["news"].(map[string]interface{}); ok {
+							needDec = true
+						} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
+							needDec = true
+						} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
+							needDec = true
+							if host, ok := metaData.(map[string]interface{})["host"].(map[string]interface{}); ok {
+								metaMap.Tag = host["nick"].(string)
+							}
+						} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
+							needDec = true
+						} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
+							metaMap = CardMessageMeta{
+								Desc: metaData.(map[string]interface{})["title"].(string),
+								Tag:  "视频",
+							}
+							if title, ok = metaData.(map[string]interface{})["nickname"].(string); ok {
+								metaMap.Title = title
+							}
+						} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
+							if channel, ok := metaData.(map[string]interface{})["channel_info"].(map[string]interface{}); ok {
+								feedTitle := "未知"
+								if feedTitle, ok = metaData.(map[string]interface{})["feed"].(map[string]interface{})["title"].(map[string]interface{})["contents"].([]interface{})[0].(map[string]interface{})["text_content"].(map[string]interface{})["text"].(string); !ok {
+									logger.Warnf("Failed to parse feed title")
+								}
+								metaMap = CardMessageMeta{
+									Title: channel["channel_name"].(string),
+									Desc:  feedTitle,
+									Tag:   "频道",
+								}
+							} else {
+								needDec = true
+							}
+						}
+						if needDec {
+							b, _ := json.Marshal(metaData)
+							_ = json.Unmarshal(b, &metaMap)
+						}
+						title = metaMap.Title
+						desc = metaMap.Desc
+						tag = metaMap.Tag
+						text += tag + "][" + title + "][" + desc + "]"
+						elements = append(elements, &message.LightAppElement{Content: text})
+					}
+				default:
+					logger.Errorf("Unknown card message type: %v", card)
+				}
+			}
+		case "file":
+			file, ok := contentMap["data"].(map[string]interface{})
+			if ok {
+				var fileSize int64
+				switch file["file_size"].(type) {
+				case string:
+					fileSize, _ = strconv.ParseInt(file["file_size"].(string), 10, 64)
+				case int64:
+					fileSize = file["file_size"].(int64)
+				}
+				if isGroupMsg {
+					elements = append(elements, &message.GroupFileElement{
+						Name: file["file"].(string),
+						Size: fileSize,
+						Path: file["path"].(string),
+					})
+				} else {
+					elements = append(elements, &message.FriendFileElement{
+						Name: file["file"].(string),
+						Size: fileSize,
+						Path: file["path"].(string),
+					})
+				}
+			}
+		case "forward":
+			forward, ok := contentMap["data"].(map[string]interface{})
+			if ok {
+				text := "[合并转发]" // + forward["id"].(string)
+				msg := &message.ForwardElement{
+					Content: text,
+					ResId:   forward["id"].(string),
+				}
+				elements = append(elements, msg)
+			}
+		case "video":
+			video, ok := contentMap["data"].(map[string]interface{})
+			if ok {
+				fileSize := 0
+				var fileId []byte
+				if video["file_size"] != nil {
+					fileSize, _ = strconv.Atoi(video["file_size"].(string))
+				}
+				if video["file_id"] != nil {
+					fileId = []byte(video["file_id"].(string))
+				}
+				msg := &message.ShortVideoElement{
+					Name: video["file"].(string),
+					Uuid: fileId,
+					Size: int32(fileSize),
+				}
+				if video["url"] != nil {
+					msg.Url = video["url"].(string)
+				}
+				elements = append(elements, msg)
+			}
+		case "markdown":
+			text := "[Markdown]"
+			elements = append(elements, &message.TextElement{Content: text})
+		default:
+			logger.Warnf("Unknown content type: %s", contentType)
 		}
 	}
+	return elements
+}
+
+func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, miraiMsg any) {
+	isGroupMsg := wsmsg.MessageType != "private"
+	var elements []message.IMessageElement
+
+	switch wsmsg.MessageContent.(type) {
+	case string:
+		handleMsgContent(wsmsg.MessageContent.(string), elements)
+	case []interface{}:
+		elements = handleMixMsg(wsmsg.MessageContent.([]interface{}), miraiMsg, isGroupMsg)
+	default:
+		logger.Warnf("未知 消息内容 类型: %v", wsmsg.MessageContent)
+		return
+	}
+
 	if isGroupMsg {
-		c.waitDataAndDispatch(g)
+		msg := miraiMsg.(*message.GroupMessage)
+		msg.Elements = elements
+		c.waitDataAndDispatch(msg)
 	} else {
+		msg := miraiMsg.(*message.PrivateMessage)
+		msg.Elements = elements
 		selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
 		if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
-			c.SelfPrivateMessageEvent.dispatch(c, pMsg)
+			c.SelfPrivateMessageEvent.dispatch(c, msg)
 		} else {
-			c.PrivateMessageEvent.dispatch(c, pMsg)
+			c.PrivateMessageEvent.dispatch(c, msg)
 		}
-		c.OutputReceivingMessage(pMsg)
+		c.OutputReceivingMessage(msg)
 	}
 }
 
