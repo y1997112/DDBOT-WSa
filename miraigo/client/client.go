@@ -1443,6 +1443,49 @@ func parseRecordElement(contentMap map[string]interface{}, elements *[]message.I
 	}
 }
 
+func parseJsonContent(meta map[string]interface{}, elements *[]message.IMessageElement) {
+	needDec, ok := true, false
+	title, text := "", "[卡片]["
+	var metaData map[string]interface{}
+	var metaMap = CardMessageMeta{
+		Title: "未知",
+		Desc:  "未知",
+		Tag:   "未知",
+	}
+	if metaData, ok = meta["news"].(map[string]interface{}); ok {
+	} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
+	} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
+		if host, ok := metaData["host"].(map[string]interface{}); ok {
+			metaMap.Tag = host["nick"].(string)
+		}
+	} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
+	} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
+		needDec = false
+		metaMap.Desc = metaData["title"].(string)
+		metaMap.Tag = "视频"
+		if title, ok = metaData["nickname"].(string); ok {
+			metaMap.Title = title
+		}
+	} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
+		if channel, ok := metaData["channel_info"].(map[string]interface{}); ok {
+			needDec = false
+			feedTitle := "未知"
+			if feedTitle, ok = metaData["feed"].(map[string]interface{})["title"].(map[string]interface{})["contents"].([]interface{})[0].(map[string]interface{})["text_content"].(map[string]interface{})["text"].(string); !ok {
+				logger.Warnf("Failed to parse feed title")
+			}
+			metaMap.Title = channel["channel_name"].(string)
+			metaMap.Desc = feedTitle
+			metaMap.Tag = "频道"
+		}
+	}
+	if needDec {
+		b, _ := json.Marshal(metaData)
+		_ = json.Unmarshal(b, &metaMap)
+	}
+	text += metaMap.Tag + "][" + metaMap.Title + "][" + metaMap.Desc + "]"
+	*elements = append(*elements, &message.LightAppElement{Content: text})
+}
+
 func parseJsonElement(contentMap map[string]interface{}, elements *[]message.IMessageElement) {
 	if card, ok := contentMap["data"].(map[string]interface{}); ok {
 		switch card["data"].(type) {
@@ -1453,58 +1496,8 @@ func parseJsonElement(contentMap map[string]interface{}, elements *[]message.IMe
 				logger.Errorf("Failed to parse card message: %v", err)
 				return
 			}
-			needDec := false
-			tag, title, desc, text := "", "", "", "[卡片]["
 			if meta, ok := j.Meta.(map[string]interface{}); ok {
-				var metaData any
-				var metaMap = CardMessageMeta{
-					Title: "未知",
-					Desc:  "未知",
-					Tag:   "未知",
-				}
-				if metaData, ok = meta["news"].(map[string]interface{}); ok {
-					needDec = true
-				} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
-					needDec = true
-				} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
-					needDec = true
-					if host, ok := metaData.(map[string]interface{})["host"].(map[string]interface{}); ok {
-						metaMap.Tag = host["nick"].(string)
-					}
-				} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
-					needDec = true
-				} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
-					metaMap = CardMessageMeta{
-						Desc: metaData.(map[string]interface{})["title"].(string),
-						Tag:  "视频",
-					}
-					if title, ok = metaData.(map[string]interface{})["nickname"].(string); ok {
-						metaMap.Title = title
-					}
-				} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
-					if channel, ok := metaData.(map[string]interface{})["channel_info"].(map[string]interface{}); ok {
-						feedTitle := "未知"
-						if feedTitle, ok = metaData.(map[string]interface{})["feed"].(map[string]interface{})["title"].(map[string]interface{})["contents"].([]interface{})[0].(map[string]interface{})["text_content"].(map[string]interface{})["text"].(string); !ok {
-							logger.Warnf("Failed to parse feed title")
-						}
-						metaMap = CardMessageMeta{
-							Title: channel["channel_name"].(string),
-							Desc:  feedTitle,
-							Tag:   "频道",
-						}
-					} else {
-						needDec = true
-					}
-				}
-				if needDec {
-					b, _ := json.Marshal(metaData)
-					_ = json.Unmarshal(b, &metaMap)
-				}
-				title = metaMap.Title
-				desc = metaMap.Desc
-				tag = metaMap.Tag
-				text += tag + "][" + title + "][" + desc + "]"
-				*elements = append(*elements, &message.LightAppElement{Content: text})
+				parseJsonContent(meta, elements)
 			}
 		default:
 			logger.Errorf("Unknown card message type: %v", card)
