@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -1623,7 +1624,11 @@ func handleMixMsg(contentArray []interface{}, miraiMsg any, isGroupMsg bool) []m
 func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, miraiMsg any) {
 	isGroupMsg := wsmsg.MessageType != "private"
 	var elements []message.IMessageElement
-
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Errorf("Recovered from panic in handleMixMsg: %v. \nStack trace:%s", r, debug.Stack())
+		}
+	}()
 	switch wsmsg.MessageContent.(type) {
 	case string:
 		handleMsgContent(wsmsg.MessageContent.(string), elements)
