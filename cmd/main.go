@@ -80,12 +80,14 @@ func main() {
 		return
 	}
 
-	fmt.Println("DDBOT唯一指定交流群：755612788")
+	fmt.Println("DDBOT交流群：755612788（已满）、980848391")
 	fmt.Println("二次修改:https://github.com/Hoshinonyaruko/DDBOT-ws")
 	fmt.Println("三次修改:https://github.com/cnxysoft/DDBOT-WSa")
-	fmt.Println("改版问题交流群:687344578")
-	fmt.Println("本分支版本主要以修复功能并接入LLOneBot为目的")
-	fmt.Println("LLOneBot仓库:https://github.com/LLOneBot/LLOneBot")
+	fmt.Println("本分支版本主要以修复功能并接入OneBot协议的BOT框架为目的")
+	fmt.Println("主流框架：LLOneBot、NapCat、Lagrange")
+	fmt.Println("LLOneBot:https://llonebot.github.io/")
+	fmt.Println("NapCat:https://napneko.github.io/")
+	fmt.Println("Lagrange:https://lagrangedev.github.io/Lagrange.Doc/")
 
 	if cli.Debug {
 		lsp.Debug = true

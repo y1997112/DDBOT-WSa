@@ -5,8 +5,8 @@
 [![GoDoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://pkg.go.dev/github.com/Sora233/DDBOT)
 
 DDBOT-WSa 是基于 DDBOT-ws 的修改版本，目的是恢复DDBOT的原有功能。
-其它更详细的更动见更新日志。
-目前已经兼容：LLOnebot v3.x / NapCat v1.x / ws-plugin v0.6.x。
+新增的模板函数以及事件（触发）等其它更详细的更动见更新日志和[DDBOT部署教程](https://ddbot.znin.net/)。
+目前已经兼容：LLOnebot / NapCat / Lagrange。
 
 **目前已经修复所有的主要指令（奇奇怪怪的指令没测试）。**
 
@@ -139,7 +139,7 @@ C:\Users\Cosmo\Documents\LiteLoaderQQNT\plugins\red\red.exe ws://127.0.0.1:15630
 - 减轻我的服务器负担
 - 很cool
 
-如果您遇到任何问题，或者有任何建议，可以加入**唯一指定交流群：755612788**
+如果您遇到任何问题，或者有任何建议，可以加入**交流群：755612788（已满）、980848391**
 
 ## 最近更新
 
@@ -147,7 +147,7 @@ C:\Users\Cosmo\Documents\LiteLoaderQQNT\plugins\red\red.exe ws://127.0.0.1:15630
 
 ## 常见问题FAQ
 
-提问前请先查看[FAQ文档](/FAQ.md)，如果仍然未能解决，请咨询唯一指定交流群。
+提问前请先查看[FAQ文档](/FAQ.md)，如果仍然未能解决，请咨询指定交流群。
 
 ## 增加推送来源 （为DDBOT编写插件）
 
@@ -192,7 +192,7 @@ DDBOT已实现消息模板功能，一些内置命令和推送可通过模板自
 
 发现问题或功能建议请到 [issues](https://github.com/Sora233/DDBOT/issues)
 
-其他用法问题请到**唯一指定交流群：755612788**
+其他用法问题请到**交流群：755612788（已满）、980848391**
 
 ## 赞助
 

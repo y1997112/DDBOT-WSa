@@ -912,7 +912,7 @@ https://github.com/cnxysoft/DDBOT-WSa/blob/master/EXAMPLE.md
 当您完成所有配置后，可以使用{{ prefix }}silence命令，让bot专注于推送，在群内发言更少
 {{- cut -}}
 B站专栏介绍：https://www.bilibili.com/read/cv10602230
-如果您有任何疑问或者建议，请反馈到唯一指定交流群：755612788
+如果您有任何疑问或者建议，请反馈到交流群：755612788（已满）、980848391
 ```
 
 </details>

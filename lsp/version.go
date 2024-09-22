@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Sora233/DDBOT/proxy_pool"
@@ -10,8 +11,8 @@ import (
 
 var (
 	CommitId  = "UNKNOWN"
-	BuildTime = "2024-09-06 10:33:00"
-	Tags      = "fix_A028"
+	BuildTime = "2024-09-22 18:05:00"
+	Tags      = "fix_A029"
 )
 
 func CheckUpdate() string {
@@ -42,6 +43,7 @@ func CheckUpdate() string {
 		}
 	}
 	latestTagName := m["tag_name"].(string)
+	latestTagName = strings.ToUpper(latestTagName)
 
 	if compareVersion(Tags, latestTagName) {
 		logrus.Infof("更新检测完成：DDBOT有可用更新版本【%v】，请前往 https://github.com/cnxysoft/DDBOT-WSa/releases 查看详细信息", latestTagName)
