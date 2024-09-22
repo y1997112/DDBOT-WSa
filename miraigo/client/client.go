@@ -610,6 +610,7 @@ type WebSocketMessage struct {
 	CardNew        string       `json:"card_new"`
 	Duration       int32        `json:"duration"`
 	Title          string       `json:"title"`
+	Times          int32        `json:"times"`
 	Echo           string       `json:"echo,omitempty"`
 }
 
@@ -1062,6 +1063,8 @@ func (c *QQClient) handleNotifyNotice(wsmsg WebSocketMessage) (bool, error) {
 			Uin:       wsmsg.UserID.ToInt64(),
 			NewTitle:  wsmsg.Title,
 		})
+	} else if wsmsg.SubType == "profile_like" {
+		logger.Infof("收到来自用户(%d)的%d次资料卡点赞", wsmsg.OperatorId, wsmsg.Times)
 	}
 	return false, nil
 }
@@ -1444,6 +1447,7 @@ func parseRecordElement(contentMap map[string]interface{}, elements *[]message.I
 }
 
 func parseJsonContent(meta map[string]interface{}, elements *[]message.IMessageElement) {
+	var nowNum int
 	needDec, ok := true, false
 	title, text := "", "[卡片]["
 	var metaData map[string]interface{}
@@ -1452,21 +1456,29 @@ func parseJsonContent(meta map[string]interface{}, elements *[]message.IMessageE
 		Desc:  "未知",
 		Tag:   "未知",
 	}
-	if metaData, ok = meta["news"].(map[string]interface{}); ok {
-	} else if metaData, ok = meta["music"].(map[string]interface{}); ok {
-	} else if metaData, ok = meta["detail_1"].(map[string]interface{}); ok {
+	metaArr := [6]string{"news", "music", "detail_1", "contact", "video", "detail"}
+	for i, v := range metaArr {
+		if metaData, ok = meta[v].(map[string]interface{}); ok {
+			nowNum = i
+			break
+		}
+	}
+	switch nowNum {
+	case 0:
+	case 1:
+	case 2:
 		if host, ok := metaData["host"].(map[string]interface{}); ok {
 			metaMap.Tag = host["nick"].(string)
 		}
-	} else if metaData, ok = meta["contact"].(map[string]interface{}); ok {
-	} else if metaData, ok = meta["video"].(map[string]interface{}); ok {
+	case 3:
+	case 4:
 		needDec = false
 		metaMap.Desc = metaData["title"].(string)
 		metaMap.Tag = "视频"
 		if title, ok = metaData["nickname"].(string); ok {
 			metaMap.Title = title
 		}
-	} else if metaData, ok = meta["detail"].(map[string]interface{}); ok {
+	case 5:
 		if channel, ok := metaData["channel_info"].(map[string]interface{}); ok {
 			needDec = false
 			feedTitle := "未知"
@@ -1477,6 +1489,8 @@ func parseJsonContent(meta map[string]interface{}, elements *[]message.IMessageE
 			metaMap.Desc = feedTitle
 			metaMap.Tag = "频道"
 		}
+	default:
+		logger.Warnf("Unknown meta type: %v", meta)
 	}
 	if needDec {
 		b, _ := json.Marshal(metaData)
