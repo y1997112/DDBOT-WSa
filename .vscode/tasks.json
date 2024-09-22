@@ -7,7 +7,7 @@
 			"command": "build",
 			"args": [
 				"-o",
-				"${workspaceRoot}\\dist\\DDBOT_amd64.exe",
+				"${workspaceRoot}\\dist\\DDBOT_windows_amd64.exe",
 				"-ldflags=-s -w"
 			],
 			"options": {
@@ -32,7 +32,7 @@
 			"command": "build",
 			"args": [
 				"-o",
-				"${workspaceRoot}\\dist\\DDBOT_arm64.exe",
+				"${workspaceRoot}\\dist\\DDBOT_windows_arm64.exe",
 				"-ldflags=-s -w"
 			],
 			"options": {
@@ -57,7 +57,7 @@
 			"command": "build",
 			"args": [
 				"-o",
-				"${workspaceRoot}\\dist\\DDBOT_amd64",
+				"${workspaceRoot}\\dist\\DDBOT_linux_amd64",
 				"-ldflags=-s -w"
 			],
 			"options": {
@@ -82,7 +82,7 @@
 			"command": "build",
 			"args": [
 				"-o",
-				"${workspaceRoot}\\dist\\DDBOT_arm64",
+				"${workspaceRoot}\\dist\\DDBOT_linux_arm64",
 				"-ldflags=-s -w"
 			],
 			"options": {
