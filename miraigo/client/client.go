@@ -262,9 +262,9 @@ type ResponseGetStrangerInfo struct {
 
 type StrangerInfo struct {
 	UID        string `json:"uid"`
-	Uin        string `json:"user_id"`
+	QID        string `json:"qid"`
+	Uin        int64  `json:"user_id"`
 	Nick       string `json:"nickname"`
-	Qid        string `json:"qid"`
 	Remark     string `json:"remark"`
 	LongNick   string `json:"long_nick"`
 	Sex        string `json:"sex"`
