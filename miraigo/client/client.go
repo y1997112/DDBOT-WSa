@@ -261,22 +261,22 @@ type ResponseGetStrangerInfo struct {
 }
 
 type StrangerInfo struct {
-	UID       string `json:"uid"`
-	Uin       string `json:"uin"`
-	Nick      string `json:"nick"`
-	Remark    string `json:"remark"`
-	LongNick  string `json:"longNick"`
-	Sex       string `json:"sex"`
-	ShengXiao int    `json:"shengXiao"`
-	RegTime   int64  `json:"regTime"`
-	QQLevel   struct {
-		CrownNum int `json:"crownNum"`
-		SunNum   int `json:"sunNum"`
-		MoonNum  int `json:"moonNum"`
-		StarNum  int `json:"starNum"`
-	} `json:"qqLevel"`
-	Age   int `json:"age"`
-	Level int `json:"level"`
+	UID        string `json:"uid"`
+	Uin        string `json:"user_id"`
+	Nick       string `json:"nickname"`
+	Qid        string `json:"qid"`
+	Remark     string `json:"remark"`
+	LongNick   string `json:"long_nick"`
+	Sex        string `json:"sex"`
+	RegTime    int64  `json:"reg_time"`
+	Age        int    `json:"age"`
+	QQLevel    int    `json:"qqLevel"`
+	Level      int    `json:"level"`
+	Status     int    `json:"status"`
+	IsVip      bool   `json:"is_vip"`
+	IsYearsVip bool   `json:"is_years_vip"`
+	VipLevel   int    `json:"vip_level"`
+	LoginDays  int    `json:"login_days"`
 }
 
 // 卡片消息
@@ -940,7 +940,7 @@ func (c *QQClient) handleFriendAddNotice(wsmsg WebSocketMessage) (bool, error) {
 		c.NewFriendEvent.dispatch(c, &NewFriendEvent{Friend})
 	} else {
 		needSync = true
-		err = fmt.Errorf("Failed to get friend info: %v", err)
+		err = fmt.Errorf("failed to get friend info: %v", err)
 	}
 	return needSync, err
 }
