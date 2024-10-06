@@ -92,6 +92,8 @@ func builtins() FuncMap {
 		"writeFile":     writeFile,
 		"abort":         abort,
 		"fin":           fin,
+		"uriEncode":     uriEncode,
+		"uriDecode":     uriDecode,
 
 		// cast
 		"float64": toFloat64,
