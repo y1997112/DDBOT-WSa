@@ -1,4 +1,10 @@
 ## DDBOT最近更新日志
+- 2024-10-06 0.3.0(Wsa)
+  - 模板增加URI编解码相关函数
+    - 编码解码：
+      - URI编码：uriEncode(str string) string
+      - URI解码：uriDecode(str string) string, error
+
 - 2024-09-26 0.2.9a(Wsa)
   - 修复陌生人信息解析失败
 
@@ -136,8 +142,8 @@
     - 数组操作：
       - 删除str数组成员：delStrSlice (arr []string, sub string) []string
     - 文件操作：
-      - 读取一行：readLine (path string, line int64) string, err0r
-      - 写入一行：writeLine (path string, line int64, content string) err0r
+      - 读取一行：readLine (path string, line int64) string, error
+      - 写入一行：writeLine (path string, line int64, content string) error
 
 - 2024-06-13 v0.1.1(WSa)
   - 继续优化ws消息处理函数
