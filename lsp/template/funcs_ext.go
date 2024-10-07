@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -686,4 +687,12 @@ func writeLine(p string, l int64, s string) error {
 	}
 	writer.Flush()
 	return nil
+}
+
+func uriEncode(s string) string {
+	return url.QueryEscape(s)
+}
+
+func uriDecode(s string) (string, error) {
+	return url.QueryUnescape(s)
 }
