@@ -61,6 +61,7 @@ func builtins() FuncMap {
 		"at":          at,
 		"icon":        icon,
 		"member_info": memberInfo,
+		"member_list": memberList,
 		"poke":        poke,
 		"bot_uin":     botUin,
 		"addScore":    addScore,

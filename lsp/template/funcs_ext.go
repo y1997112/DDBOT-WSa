@@ -30,6 +30,18 @@ func RegisterExtFunc(name string, fn interface{}) {
 	funcsExt[name] = fn
 }
 
+func memberList(groupCode int64) []map[string]interface{} {
+	var result []map[string]interface{}
+	gi := localutils.GetBot().FindGroup(groupCode)
+	if gi == nil {
+		return result
+	}
+	for _, m := range gi.Members {
+		result = append(result, memberInfo(groupCode, m.Uin))
+	}
+	return result
+}
+
 func memberInfo(groupCode int64, uin int64) map[string]interface{} {
 	var result = make(map[string]interface{})
 	gi := localutils.GetBot().FindGroup(groupCode)
@@ -40,6 +52,7 @@ func memberInfo(groupCode int64, uin int64) map[string]interface{} {
 	if fi == nil {
 		return result
 	}
+	result["uin"] = uin
 	result["name"] = fi.DisplayName()
 	switch fi.Permission {
 	case client.Owner:

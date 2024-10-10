@@ -1,4 +1,9 @@
 ## DDBOT最近更新日志
+- 2024-10-10 0.3.1(Wsa)
+  - 模板增加群成员列表函数
+    - member_list(groupCode int64) []member_info
+  - 模板函数member_info增加uin字段
+
 - 2024-10-06 0.3.0(Wsa)
   - 模板增加URI编解码相关函数
     - 编码解码：
