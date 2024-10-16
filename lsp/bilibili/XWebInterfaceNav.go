@@ -4,14 +4,15 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/Sora233/DDBOT/proxy_pool"
 	"github.com/Sora233/DDBOT/requests"
 	"github.com/Sora233/DDBOT/utils"
 	"github.com/samber/lo"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const PathXWebInterfaceNav = "/x/web-interface/nav"
@@ -55,18 +56,11 @@ func signWbi(params map[string]string) map[string]string {
 	mixinKey := getMixinKey(imgKey + subKey)
 	currTime := strconv.FormatInt(time.Now().Unix(), 10)
 	params["wts"] = currTime
-	// Sort keys
-	keys := make([]string, 0, len(params))
-	for k := range params {
-		keys = append(keys, k)
+	urlParams := url.Values{}
+	for key, value := range params {
+		urlParams.Add(key, fmt.Sprintf("%v", value))
 	}
-	sort.Strings(keys)
-	// Build URL parameters
-	var str strings.Builder
-	for _, k := range keys {
-		str.WriteString(fmt.Sprintf("%s=%s&", k, params[k]))
-	}
-	query := strings.TrimSuffix(str.String(), "&")
+	query := urlParams.Encode()
 	hash := md5.Sum([]byte(query + mixinKey))
 	params["w_rid"] = hex.EncodeToString(hash[:])
 	return params
