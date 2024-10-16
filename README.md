@@ -17,7 +17,7 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
 
 *DDBOT不是一个聊天机器人。*
 
-我是早苗狐,我对ddbot进行了一些修改,让它可以不依赖miraigo运行
+感谢早苗狐对ddbot进行了一些修改,让它可以不依赖miraigo运行
 
 [sora233的Bilibili专栏](https://www.bilibili.com/read/cv10602230)
 
