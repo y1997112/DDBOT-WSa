@@ -23,7 +23,7 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
 
 [部署脚本](https://www.yuque.com/km57bt/hlhnxg/ww7f3aiwxtsldmq9)
 
-- 走完部署流程,这是我自己的部署脚本,但ddbot可以通用
+- 走完部署流程,这是早苗狐的部署脚本,但ddbot可以通用
 
 - 找到C:\Users\用户名\Documents\LiteLoaderQQNT\plugins\red文件夹
 
