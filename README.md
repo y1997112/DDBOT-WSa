@@ -221,7 +221,8 @@ DDBOT已实现消息模板功能，一些内置命令和推送可通过模板自
 
 [<img src="https://user-images.githubusercontent.com/11474360/112592917-baa00600-8e41-11eb-9da4-ecb53bb3c2fa.png" width="200"/>](https://jb.gg/OpenSource)
 
-> Sora233：提供初版ddbot。/p
+> Sora233：提供初版ddbot。
+
 > 早苗狐：感谢早苗狐对ddbot进行了一些修改,让它可以不依赖miraigo运行。
 ## DDBOT:star:趋势图
 
