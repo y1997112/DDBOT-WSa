@@ -31,12 +31,6 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
 
 - 找到C:\Users\用户名\Documents\LiteLoaderQQNT\plugins\red文件夹
 
-- 复制一个新的red.bat(直接双击red.bat会启动早苗)
-
-- 修改复制的red.bat名称为ddbot.bat
-
-- 用记事本打开ddbot.bat
-
 修改内部内容,
 下方内容只是示范!!
 仅需要将ws://sanae.xxxx地址改为ws://127.0.0.1:15630/ws
@@ -52,13 +46,13 @@ C:\Users\Cosmo\Documents\LiteLoaderQQNT\plugins\red\red.exe ws://127.0.0.1:15630
 
 - 自动生成application.yaml后打开编辑,输入自己的机器人号码
 
-- 已知问题:权限系统暂时失效,判断不了管理员,解决方法,在ddbot.exe同目录新建 admin.txt 一行一个,手动录入有权限的人.
-
 ## 使用方法2
 
  - 使用trss安装云崽
    
  - 使用trss连接chronocat(red)
+
+ - 使用LLOnebot / NapCat / Lagrange连接
    
  - 云崽安装ws-plugin
    
@@ -229,6 +223,7 @@ DDBOT已实现消息模板功能，一些内置命令和推送可通过模板自
 
 [<img src="https://user-images.githubusercontent.com/11474360/112592917-baa00600-8e41-11eb-9da4-ecb53bb3c2fa.png" width="200"/>](https://jb.gg/OpenSource)
 
+> Sora233（提供初版ddbot）
 ## DDBOT:star:趋势图
 
 [![Stargazers over time](https://starchart.cc/Sora233/DDBOT.svg)](https://starchart.cc/Sora233/DDBOT)
