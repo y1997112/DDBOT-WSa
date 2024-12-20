@@ -19,30 +19,8 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
 
 -----
 
+
 ## 使用方法
-
-[部署脚本](https://www.yuque.com/km57bt/hlhnxg/ww7f3aiwxtsldmq9)
-
-- 走完部署流程,这是早苗狐的部署脚本,但ddbot可以通用
-
-- 找到C:\Users\用户名\Documents\LiteLoaderQQNT\plugins\red文件夹
-
-修改内部内容,
-下方内容只是示范!!
-仅需要将ws://sanae.xxxx地址改为ws://127.0.0.1:15630/ws
-然后保存,运行bat,之后运行本仓库的DDBOT
-遇到问题可以进群问我,群号670078416
-
-```
-@echo off
-title 标题
-C:\Users\Cosmo\Documents\LiteLoaderQQNT\plugins\red\red.exe ws://127.0.0.1:15630/ws aaa3b2ea7f84f30d8fef5ef0a36c5a86028819dac9c6fcf68da272a57b0b1f77 122344 ws://127.0.0.1:16530
-```
-- 修改完成后运行ddbot.bat然后运行本仓库release的ddbot.exe
-
-- 自动生成application.yaml后打开编辑,输入自己的机器人号码
-
-## 使用方法2
 
  - 使用trss安装云崽
    
