@@ -35,7 +35,7 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
  - ws://127.0.0.1:15630/ws
 
  - **从纯血DDBOT迁移到WSa**
- - 打开lsp.db的文件用右键记事本开启或vs/vscode打开 搜索ex字段全部替换为ex字段 只需要把ex改成ex就可以成功初始化数据库（可能会at全体失效建议重新配置）
+ - 打开lsp.db的文件用右键记事本开启或vs/vscode打开 搜索ae字段全部替换为ex字段 只需要把ae改成ex就可以成功初始化数据库（可能会at全体失效建议重新配置）
 
 ## 设计理念
 
