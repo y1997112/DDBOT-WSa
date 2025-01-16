@@ -8,6 +8,7 @@ import (
 	"github.com/Sora233/MiraiGo-Template/config"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/atomic"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,8 @@ var BasePath = map[string]string{
 	PathGetAttentionList:         BaseVCHost,
 	PathPassportLoginWebKey:      PassportHost,
 	PathPassportLoginOAuth2Login: PassportHost,
+	PathQRLoginGenerateQR:        PassportHost,
+	PathQRLoginOAuth2Login:       PassportHost,
 	PathXRelationStat:            BaseHost,
 	PathXWebInterfaceNav:         BaseHost,
 	PathDynamicSrvDynamicHistory: BaseVCHost,
@@ -83,12 +86,54 @@ var (
 
 func Init() {
 	var (
-		SESSDATA = config.GlobalConfig.GetString("bilibili.SESSDATA")
-		biliJct  = config.GlobalConfig.GetString("bilibili.bili_jct")
+		SESSDATA   = config.GlobalConfig.GetString("bilibili.SESSDATA")
+		biliJct    = config.GlobalConfig.GetString("bilibili.bili_jct")
+		useQRLogin = config.GlobalConfig.GetBool("bilibili.QRLogin")
 	)
 	if len(SESSDATA) != 0 && len(biliJct) != 0 {
 		SetVerify(SESSDATA, biliJct)
 		FreshSelfInfo()
+	} else if useQRLogin {
+		logger.Info("B站扫码登陆已开启")
+		go func() {
+			for {
+				GetQRResp, err := GetQRCode()
+				if err != nil {
+					logger.Errorf("生成登陆二维码失败 - %v", err)
+					time.Sleep(time.Second * 5)
+					continue
+				}
+				logger.Info("已生成二维码，请扫码登陆~")
+				for {
+					time.Sleep(time.Second * 5)
+					CheckResp, err := QRLoginCheck(GetQRResp.Data.QrcodeKey)
+					if err != nil {
+						if err.Error() == "二维码已失效" {
+							logger.Warnf("%v - 重新生成二维码", err)
+							break
+						}
+						continue
+					}
+					cookies, err := GetCookies(CheckResp.Data.Url)
+					if err != nil {
+						logger.Errorf("解析Cookies失败 - %v", err)
+						continue
+					}
+					config.GlobalConfig.Set("bilibili.SESSDATA", cookies.SESSDATA)
+					config.GlobalConfig.Set("bilibili.bili_jct", cookies.BILI_JCT)
+					if err := config.GlobalConfig.WriteConfig(); err != nil {
+						logger.Errorf("保存配置文件失败 - %v", err)
+						continue
+					}
+					SetVerify(cookies.SESSDATA, cookies.BILI_JCT)
+					FreshSelfInfo()
+					logger.Info("B站扫码登陆成功，请重启DDBOT-WSa")
+					logger.Info("正在退出...")
+					time.Sleep(time.Second * 5)
+					os.Exit(0)
+				}
+			}
+		}()
 	}
 	SetAccount(config.GlobalConfig.GetString("bilibili.account"), config.GlobalConfig.GetString("bilibili.password"))
 }

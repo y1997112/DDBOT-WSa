@@ -1,4 +1,11 @@
 ## DDBOT最近更新日志
+- 2025-01-12 0.3.6(Wsa)
+  - 增加对扫码登录的支持
+  - 增加对AccessToken验证的支持
+
+- 2024-10-20 0.3.3(Wsa)
+  - 修复无法关闭B站UP主
+
 - 2024-10-10 0.3.1(Wsa)
   - 模板增加群成员列表函数
     - member_list(groupCode int64) []member_info
