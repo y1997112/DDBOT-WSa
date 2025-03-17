@@ -61,7 +61,12 @@ func ReloadCustomCommandPrefix() {
 	if err != nil {
 		return
 	}
-	var a = all["customCommandPrefix"]
+	var a interface{}
+	if val, ok := all["customCommandPrefix"]; ok && val != nil {
+		a = val
+	} else if val, ok := all["customcommandprefix"]; ok {
+		a = val
+	}
 	if a == nil {
 		return
 	}

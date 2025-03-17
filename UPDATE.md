@@ -1,4 +1,7 @@
 ## DDBOT最近更新日志
+- 2025-03-17 0.3.6b(Wsa)
+  - 修复customcommandprefix配置为小写时失效的问题
+
 - 2025-01-12 0.3.6(Wsa)
   - 增加对扫码登录的支持
   - 增加对AccessToken验证的支持
