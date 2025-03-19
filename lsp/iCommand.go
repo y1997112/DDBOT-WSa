@@ -59,7 +59,11 @@ func IList(c *MessageContext, groupCode int64, site string) {
 				} else {
 					listMsg.Text("\n")
 				}
-				listMsg.Textf("%v订阅：", c.Site())
+				if len(ids) > 120 {
+					listMsg.Textf("%v订阅(第1部分)：", c.Site())
+				} else {
+					listMsg.Textf("%v订阅：", c.Site())
+				}
 				for index, id := range ids {
 					info, err = c.Get(id)
 					if err != nil {
@@ -67,12 +71,16 @@ func IList(c *MessageContext, groupCode int64, site string) {
 					}
 					listMsg.Text("\n")
 					listMsg.Textf("%v %v %v", info.GetName(), info.GetUid(), ctypes[index].String())
+					if index == 120 {
+						listMsg.Cut()
+						listMsg.Textf("%v订阅(第2部分)：", c.Site())
+					}
 				}
-
+				listMsg.Cut()
+				first = true
 			}
 		}
 	}
-
 	if len(listMsg.Elements()) == 0 {
 		listMsg.Textf("暂无订阅，可以使用%v命令订阅", c.Lsp.CommandShowName(WatchCommand))
 	}
