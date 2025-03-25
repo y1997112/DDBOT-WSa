@@ -434,8 +434,15 @@ func (lgc *LspGroupCommand) ListCommand() {
 	if lgc.exit {
 		return
 	}
+	param := map[string]interface{}{
+		"message_context": lgc.NewMessageContext(log),
+		"group_code":      groupCode,
+		"list_site":       listCmd.Site,
+	}
 
-	IList(lgc.NewMessageContext(log), groupCode, listCmd.Site)
+	lgc.sendChain(lgc.templateMsg("command.group.list.tmpl", param))
+	// 使用模板调用实现
+	//IList(lgc.NewMessageContext(log), groupCode, listCmd.Site)
 }
 
 func (lgc *LspGroupCommand) RollCommand() {

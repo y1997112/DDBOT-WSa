@@ -3,88 +3,203 @@ package lsp
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
+
 	localdb "github.com/Sora233/DDBOT/lsp/buntdb"
 	"github.com/Sora233/DDBOT/lsp/concern"
 	"github.com/Sora233/DDBOT/lsp/concern_type"
+	"github.com/Sora233/DDBOT/lsp/interfaces"
 	"github.com/Sora233/DDBOT/lsp/mmsg"
 	"github.com/Sora233/DDBOT/lsp/permission"
 	"github.com/Sora233/DDBOT/utils"
 	"github.com/Sora233/sliceutil"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/buntdb"
-	"sort"
-	"strings"
 )
 
-func IList(c *MessageContext, groupCode int64, site string) {
-	if c.Lsp.PermissionStateManager.CheckGroupCommandDisabled(groupCode, ListCommand) {
-		c.DisabledReply()
-		return
+// 将结构体定义移到文件顶部
+type listProviderImpl struct{}
+
+type listProviderFactoryImpl struct{}
+
+// 保持原有注册逻辑
+func init() {
+	interfaces.RegisterListProvider(&listProviderFactoryImpl{})
+}
+
+func (f *listProviderFactoryImpl) NewListProvider() interfaces.ListProvider {
+	return &listProviderImpl{}
+}
+
+func (p *listProviderImpl) QueryList(groupCode int64, site string, msgContext ...any) []byte {
+	ctx := NewMessageContext()
+	if len(msgContext) > 0 {
+		if mc, ok := msgContext[0].(*MessageContext); ok {
+			ctx = mc
+		}
+	}
+	return IList(ctx, groupCode, site, true)
+}
+
+func (p *listProviderImpl) RunIList(msgContext any, groupCode int64, site string) []byte {
+	return IList(msgContext.(*MessageContext), groupCode, site, false)
+}
+
+type ilistData struct {
+	Bilibili siteData `json:"Bilibili"`
+	Weibo    siteData `json:"Weibo"`
+	Youtube  siteData `json:"Youtube"`
+	Acfun    siteData `json:"Acfun"`
+}
+
+type siteData struct {
+	Site string   `json:"Site"`
+	Ids  []idInfo `json:"Ids"`
+}
+
+type idInfo struct {
+	Uid       any    `json:"Uid"`
+	Name      string `json:"Name"`
+	WatchType string `json:"WatchType"`
+}
+
+func IList(c *MessageContext, groupCode int64, site string, opts ...any) []byte {
+	var queryMode bool
+	if len(opts) > 0 {
+		if qm, ok := opts[0].(bool); ok {
+			queryMode = qm
+		}
+	}
+
+	if !queryMode {
+		if c.Lsp.PermissionStateManager.CheckGroupCommandDisabled(groupCode, ListCommand) {
+			c.DisabledReply()
+			return nil
+		}
 	}
 
 	listMsg := mmsg.NewMSG()
-
+	var charCount = 0 // 用于记录当前消息的字符数
 	var first = true
 	var targetCM []concern.Concern
 	var info concern.IdentityInfo
+	var iList ilistData
 
 	if len(site) > 0 {
 		cm, err := concern.GetConcernByParseSite(site)
 		if err != nil {
 			c.TextReply(fmt.Sprintf("失败 - %v", err))
-			return
+			return nil
 		}
 		targetCM = append(targetCM, cm)
 	} else {
 		targetCM = concern.ListConcern()
 	}
-	for _, c := range targetCM {
-		_, ids, ctypes, err := c.GetStateManager().ListConcernState(func(_groupCode int64, _ interface{}, _ concern_type.Type) bool {
+
+	for _, cm := range targetCM { // 避免变量名冲突，将 c 改为 cm
+		_, ids, ctypes, err := cm.GetStateManager().ListConcernState(func(_groupCode int64, _ interface{}, _ concern_type.Type) bool {
 			return groupCode == _groupCode
 		})
 		if err == nil {
-			ids, ctypes, err = c.GetStateManager().GroupTypeById(ids, ctypes)
+			ids, ctypes, err = cm.GetStateManager().GroupTypeById(ids, ctypes)
 		}
 		if err != nil {
 			if first {
 				first = false
 			} else {
 				listMsg.Text("\n")
+				charCount += 1 // 增加换行符的字符数
 			}
-			listMsg.Textf("%v订阅查询失败 - %v", c.Site(), err)
+			errorMsg := fmt.Sprintf("%v订阅查询失败 - %v", cm.Site(), err)
+			listMsg.Text(errorMsg)
+			charCount += len(errorMsg)
+			if charCount > 4500 {
+				listMsg.Cut()
+				c.Send(listMsg)
+				listMsg = mmsg.NewMSG()
+				charCount = 0
+				first = true
+			}
 		} else {
 			if len(ids) > 0 {
-				if first {
-					first = false
-				} else {
-					listMsg.Text("\n")
-				}
-				if len(ids) > 120 {
-					listMsg.Textf("%v订阅(第1部分)：", c.Site())
-				} else {
-					listMsg.Textf("%v订阅：", c.Site())
-				}
-				for index, id := range ids {
-					info, err = c.Get(id)
-					if err != nil {
-						info = concern.NewIdentity(id, "unknown")
+				if queryMode {
+					tmpData := siteData{
+						Site: cm.Site(),
 					}
-					listMsg.Text("\n")
-					listMsg.Textf("%v %v %v", info.GetName(), info.GetUid(), ctypes[index].String())
-					if index == 120 {
-						listMsg.Cut()
-						listMsg.Textf("%v订阅(第2部分)：", c.Site())
+					for index, id := range ids {
+						info, err = cm.Get(id)
+						if err != nil {
+							info = concern.NewIdentity(id, "unknown")
+						}
+						nowInfo := idInfo{
+							Uid:       info.GetUid(),
+							Name:      info.GetName(),
+							WatchType: ctypes[index].String(),
+						}
+						tmpData.Ids = append(tmpData.Ids, nowInfo)
 					}
+
+					switch strings.ToLower(cm.Site()) {
+					case "bilibili":
+						iList.Bilibili = tmpData
+					case "weibo":
+						iList.Weibo = tmpData
+					case "youtube":
+						iList.Youtube = tmpData
+					case "acfun":
+						iList.Acfun = tmpData
+					}
+
+				} else {
+					if first {
+						first = false
+					} else {
+						listMsg.Text("\n")
+						charCount += 1 // 增加换行符的字符数
+					}
+					if len(ids) > 0 {
+						partTitle := fmt.Sprintf("%v订阅：", cm.Site())
+						listMsg.Text(partTitle)
+						charCount += len(partTitle)
+					}
+					for index, id := range ids {
+						info, err = cm.Get(id)
+						if err != nil {
+							info = concern.NewIdentity(id, "unknown")
+						}
+						itemMsg := fmt.Sprintf("\n%v %v %v", info.GetName(), info.GetUid(), ctypes[index].String())
+						if charCount+len(itemMsg) > 4500 && index < len(ids)-1 {
+							listMsg.Cut()
+							partTitle := fmt.Sprintf("%v订阅(第%d部分)：", cm.Site(), (index+1)/4500+1)
+							listMsg.Text(partTitle)
+							charCount = len(partTitle)
+						} else {
+							listMsg.Text(itemMsg)
+							charCount += len(itemMsg)
+						}
+					}
+					listMsg.Cut()
+					first = true
+					charCount = 0
 				}
-				listMsg.Cut()
-				first = true
 			}
 		}
 	}
-	if len(listMsg.Elements()) == 0 {
-		listMsg.Textf("暂无订阅，可以使用%v命令订阅", c.Lsp.CommandShowName(WatchCommand))
+
+	if queryMode {
+		ret, _ := json.Marshal(iList)
+		return ret
 	}
-	c.Send(listMsg)
+
+	if len(listMsg.Elements()) == 0 {
+		noSubMsg := fmt.Sprintf("暂无订阅，可以使用%v命令订阅", c.Lsp.CommandShowName(WatchCommand))
+		listMsg.Text(noSubMsg)
+	}
+	if len(listMsg.Elements()) > 0 {
+		c.Send(listMsg)
+	}
+	return nil
 }
 
 func IWatch(c *MessageContext, groupCode int64, id string, site string, watchType concern_type.Type, remove bool) {

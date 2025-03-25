@@ -40,7 +40,7 @@ func (c *Concern) Add(ctx mmsg.IMsgCtx, groupCode int64, _id interface{}, ctype 
 	if err != nil {
 		return nil, err
 	}
-	info, err := c.FindOrLoad(id)
+	info, err := c.FindOrLoad(id, true)
 	if err != nil {
 		log.Errorf("FindOrLoad error %v", err)
 		return nil, fmt.Errorf("查询channel信息失败 %v - %v", id, err)
@@ -66,7 +66,7 @@ func (c *Concern) Remove(ctx mmsg.IMsgCtx, groupCode int64, _id interface{}, cty
 }
 
 func (c *Concern) Get(id interface{}) (concern.IdentityInfo, error) {
-	info, err := c.FindInfo(id.(string), false)
+	info, err := c.FindInfo(id.(string), false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -143,13 +143,13 @@ func (c *Concern) notifyGenerator() concern.NotifyGeneratorFunc {
 
 func (c *Concern) freshInfo(channelId string) (result []*VideoInfo, err error) {
 	log := logger.WithField("channel_id", channelId)
-	oldInfo, _ := c.FindInfo(channelId, false)
-	newInfo, err := c.FindInfo(channelId, true)
+	oldInfo, _ := c.FindInfo(channelId, false, false)
+	newInfo, err := c.FindInfo(channelId, true, false)
 	if err != nil {
 		log.Errorf("load newInfo failed %v", err)
 		return
 	}
-	if oldInfo == nil {
+	if oldInfo.VideoInfo == nil {
 		// first load, just notify if living
 		for _, newV := range newInfo.VideoInfo {
 			if newV.IsLive() {
@@ -186,8 +186,10 @@ func (c *Concern) freshInfo(channelId string) (result []*VideoInfo, err error) {
 				}
 			}
 			if !found {
-				// new video
 				if notifyCount == 0 {
+					if newV.IsLive() && newV.IsLiving() {
+						newV.liveStatusChanged = true
+					}
 					result = append(result, newV)
 					notifyCount += 1
 					// notify video most once
@@ -198,14 +200,14 @@ func (c *Concern) freshInfo(channelId string) (result []*VideoInfo, err error) {
 	return
 }
 
-func (c *Concern) FindInfo(channelId string, load bool) (*Info, error) {
+func (c *Concern) FindInfo(channelId string, load bool, addMode bool) (*Info, error) {
 	var info *Info
 	if load {
 		vi, err := XFetchInfo(channelId)
 		if err != nil {
 			return nil, err
 		}
-		info = NewInfo(vi)
+		info = NewInfo(vi, addMode)
 		c.StateManager.AddInfo(info)
 	}
 
@@ -215,10 +217,10 @@ func (c *Concern) FindInfo(channelId string, load bool) (*Info, error) {
 	return c.GetInfo(channelId)
 }
 
-func (c *Concern) FindOrLoad(channelId string) (*Info, error) {
-	info, _ := c.FindInfo(channelId, false)
+func (c *Concern) FindOrLoad(channelId string, addMode bool) (*Info, error) {
+	info, _ := c.FindInfo(channelId, false, addMode)
 	if info == nil {
-		return c.FindInfo(channelId, true)
+		return c.FindInfo(channelId, true, addMode)
 	} else {
 		return info, nil
 	}

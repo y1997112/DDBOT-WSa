@@ -3,6 +3,7 @@ package template
 import (
 	"bufio"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -17,6 +18,7 @@ import (
 	"github.com/Mrs4s/MiraiGo/message"
 	localdb "github.com/Sora233/DDBOT/lsp/buntdb"
 	"github.com/Sora233/DDBOT/lsp/cfg"
+	"github.com/Sora233/DDBOT/lsp/interfaces"
 	"github.com/Sora233/DDBOT/lsp/mmsg"
 	localutils "github.com/Sora233/DDBOT/utils"
 	"github.com/shopspring/decimal"
@@ -708,4 +710,34 @@ func uriEncode(s string) string {
 
 func uriDecode(s string) (string, error) {
 	return url.QueryUnescape(s)
+}
+
+// 修改调用方式
+func getIListJson(groupCode int64, site string, msgContext ...interface{}) []byte {
+	provider := interfaces.NewListProvider()
+	return provider.QueryList(groupCode, site, msgContext)
+}
+
+func outputIList(msgContext interface{}, groupCode int64, site string) string {
+	provider := interfaces.NewListProvider()
+	provider.RunIList(msgContext, groupCode, site)
+	return ""
+}
+
+func jsonToDictOrArray(jsonByte []byte, isArray bool) (interface{}, error) {
+	if isArray {
+		var result []map[string]interface{}
+		err := json.Unmarshal(jsonByte, &result)
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	} else {
+		var result map[string]interface{}
+		err := json.Unmarshal(jsonByte, &result)
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 }
