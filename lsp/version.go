@@ -10,8 +10,8 @@ import (
 
 var (
 	CommitId  = "UNKNOWN"
-	BuildTime = "2024-10-20 19:59:00"
-	Tags      = "fix_A033"
+	BuildTime = "2025-03-25 19:35:00"
+	Tags      = "fix_A037"
 )
 
 func CheckUpdate() string {

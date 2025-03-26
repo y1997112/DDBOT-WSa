@@ -1,4 +1,33 @@
 ## DDBOT最近更新日志
+- 2025-03-23 0.3.7(Wsa)
+  - 更改关注列表过长无法输出的修复方式
+  - 修复Youtube的直播推送失效的问题
+  - 支持使用新的Youtube UID订阅账号
+  - 为默认配置文件增加 Access Token 字段
+  - 支持将list模板替换为自定义模板（详见文档，虽然还没写）
+    - 名称：command.group.list.tmpl
+  - 新增几个模板函数（详见文档，虽然还没写）
+    - 获取群关注列表函数
+      - getIListJson(groupCode int64, site string, msgContext ...MessageContext) []byte
+        - 输出的[]byte可使用toString转为json文本
+        - site参数可以不填，将输出所有站点关注列表（示例：bilibili、weibo）
+        - msgContext为可选参数，list命令模板会提供此参数
+    - 输出原版LIST列表（自带分片）
+      - outputIList(msgContext MessageContext, groupCode int64, site string)
+        - list命令模板会提供msgContext参数，引用即可
+        - site参数可以不填，将输出所有站点关注列表（示例：bilibili、weibo）
+    - json转Dict或Dict数组
+      - jsonToDictOrArray(jsonByte []byte, isArray bool) ([]Dict, error)
+        - isArray为true时，返回Dict数组，为false时，返回Dict
+
+- 2025-03-17 0.3.6b(Wsa)
+  - 修复customcommandprefix配置为小写时失效的问题
+  - 临时修复关注列表太长导致的无法输出
+
+- 2025-01-12 0.3.6(Wsa)
+  - 增加对扫码登录的支持
+  - 增加对AccessToken验证的支持
+
 - 2024-10-20 0.3.3(Wsa)
   - 修复无法关闭B站UP主
 

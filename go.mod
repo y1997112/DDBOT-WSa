@@ -35,11 +35,13 @@ require (
 	github.com/samber/lo v1.38.1
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/spf13/cast v1.5.1
 	github.com/stretchr/testify v1.8.3
 	github.com/tidwall/buntdb v1.2.10
 	github.com/tidwall/gjson v1.14.4
 	go.uber.org/atomic v1.10.0
+	golang.org/x/net v0.11.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -90,7 +92,6 @@ require (
 	golang.org/x/arch v0.3.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
-	golang.org/x/net v0.11.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	gopkg.ilharper.com/x/isatty v1.1.1 // indirect

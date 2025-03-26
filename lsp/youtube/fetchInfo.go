@@ -15,7 +15,12 @@ import (
 	"time"
 )
 
-const VideoPath = "https://www.youtube.com/channel/%s/videos?view=57&flow=grid"
+// 老的 channelID 订阅
+// const VideoPath1 = "https://www.youtube.com/channel/%s/videos?view=57&flow=grid"
+// const VideoPath2 = "https://www.youtube.com/channel/%s/streams?view=57&flow=grid"
+// 新的 UID 订阅
+const VideoPath1 = "https://www.youtube.com/%s/videos?view=57&flow=grid"
+const VideoPath2 = "https://www.youtube.com/%s/streams?view=57&flow=grid"
 
 type Searcher struct {
 	Sub []*gabs.Container
@@ -49,6 +54,22 @@ func (r *Searcher) search(key string, j *gabs.Container) {
 	}
 }
 
+func extractData(content []byte) (*gabs.Container, error) {
+	var reg *regexp.Regexp
+	if strings.Contains(string(content), `window["ytInitialData"]`) {
+		reg = regexp.MustCompile("window\\[\"ytInitialData\"\\] = (?P<json>.*);")
+	} else {
+		reg = regexp.MustCompile(">var ytInitialData = (?P<json>.*?);</script>")
+	}
+
+	result := reg.FindSubmatch(content)
+	if len(result) <= reg.SubexpIndex("json") {
+		return nil, errors.New("no json data matched")
+	}
+
+	return gabs.ParseJSON(result[reg.SubexpIndex("json")])
+}
+
 // XFetchInfo very sb
 func XFetchInfo(channelID string) ([]*VideoInfo, error) {
 	log := logger.WithField("channel_id", channelID)
@@ -59,8 +80,6 @@ func XFetchInfo(channelID string) ([]*VideoInfo, error) {
 	}()
 
 	var channelName string
-
-	path := fmt.Sprintf(VideoPath, channelID)
 	var opts = []requests.Option{
 		requests.HeaderOption("accept-language", "zh-CN"),
 		requests.AddUAOption(),
@@ -68,37 +87,42 @@ func XFetchInfo(channelID string) ([]*VideoInfo, error) {
 		requests.TimeoutOption(time.Second * 10),
 		requests.RetryOption(3),
 	}
-	var body = new(bytes.Buffer)
-	err := requests.Get(path, nil, body, opts...)
-	if err != nil {
-		return nil, err
-	}
-	content := body.Bytes()
-	var reg *regexp.Regexp
-	if strings.Contains(string(content), `window["ytInitialData"]`) {
-		reg = regexp.MustCompile("window\\[\"ytInitialData\"\\] = (?P<json>.*);")
-	} else {
-		reg = regexp.MustCompile(">var ytInitialData = (?P<json>.*?);</script>")
-	}
-	result := reg.FindSubmatch(content)
+	var roots []*gabs.Container
 
-	if len(result) <= reg.SubexpIndex("json") {
-		return nil, errors.New("no json data matched")
+	// 处理第一次请求
+	{
+		path := fmt.Sprintf(VideoPath1, channelID)
+		body := new(bytes.Buffer)
+		if err := requests.Get(path, nil, body, opts...); err != nil {
+			return nil, err
+		}
+		if root, err := extractData(body.Bytes()); err == nil {
+			roots = append(roots, root)
+		}
 	}
 
-	root, err := gabs.ParseJSON(result[reg.SubexpIndex("json")])
-	if err != nil {
-		return nil, err
+	// 处理第二次请求
+	{
+		path := fmt.Sprintf(VideoPath2, channelID)
+		body := new(bytes.Buffer)
+		if err := requests.Get(path, nil, body, opts...); err != nil {
+			return nil, err
+		}
+		if root, err := extractData(body.Bytes()); err == nil {
+			roots = append(roots, root)
+		}
 	}
 
+	// 合并处理逻辑
 	var videoSearcher = new(Searcher)
 	var infoSearcher = new(Searcher)
+	for _, root := range roots {
+		videoSearcher.search("gridVideoRenderer", root)
+		videoSearcher.search("videoRenderer", root)
+		infoSearcher.search("channelMetadataRenderer", root)
+	}
 
-	videoSearcher.search("gridVideoRenderer", root)
-	videoSearcher.search("videoRenderer", root)
-	infoSearcher.search("channelMetadataRenderer", root)
-
-	reg = regexp.MustCompile(`\\u[0-9]{4}`)
+	reg := regexp.MustCompile(`\\u[0-9]{4}`)
 	if len(infoSearcher.Sub) >= 1 {
 		channelName = infoSearcher.Sub[0].S("title").String()
 		allCode := reg.FindAllString(channelName, -1)
@@ -143,7 +167,7 @@ func XFetchInfo(channelID string) ([]*VideoInfo, error) {
 			"accessibility", "accessibilityData", "label").String(), `"`) {
 		case "PREMIERE", "首播", "プレミア":
 			i.VideoType = VideoType_FirstLive
-		case "LIVE", "直播", "ライブ":
+		case "LIVE", "直播", "ライブ", "即将开始":
 			i.VideoType = VideoType_Live
 		case "null":
 			log.Error("null video type")

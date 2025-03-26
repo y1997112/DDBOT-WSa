@@ -142,8 +142,9 @@ bot:
 # 关注用户 / 取消关注用户 / 查看关注列表
 # 请注意，订阅一个账号后，此处使用的b站账号将自动关注该账号
 bilibili:
-  SESSDATA: "" # 你的b站cookie
-  bili_jct: "" # 你的b站cookie
+  SESSDATA: # 你的b站cookie
+  bili_jct: # 你的b站cookie
+  qrlogin: true # 是否启用二维码登录（Cookies失效时只需要清空SESSDATA和bili_jct重启即可再次登录）
   interval: 25s # 直播状态和动态检测间隔，过快可能导致ip被暂时封禁
   imageMergeMode: "auto" # 设置图片合并模式，支持 "auto" / "only9" / "off"
                          # auto 为默认策略，存在比较刷屏的图片时会合并
@@ -177,10 +178,12 @@ customCommandPrefix:
 logLevel: info
 
 # ws模式支持ws-server（正向）和ws-reverse（反向）
+# token 是服务端设置的 Access Token
 # ws-server 默认监听全部请求，如需限制请修改为指定ip:端口
 # ws-reverse 需要配合反向ws服务器使用，默认为LLOneBot地址
 websocket:
   mode: ws-server
+  token:
   ws-server: 0.0.0.0:15630
   ws-reverse: ws://localhost:3001
 

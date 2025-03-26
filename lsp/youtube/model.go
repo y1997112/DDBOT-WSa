@@ -144,9 +144,11 @@ func (i *Info) ToString() string {
 	return string(b)
 }
 
-func NewInfo(vinfo []*VideoInfo) *Info {
+func NewInfo(vinfo []*VideoInfo, addMode bool) *Info {
 	info := new(Info)
-	info.VideoInfo = vinfo
+	if !addMode {
+		info.VideoInfo = vinfo
+	}
 	if len(vinfo) > 0 {
 		info.ChannelId = vinfo[0].ChannelId
 		info.ChannelName = vinfo[0].ChannelName

@@ -177,6 +177,30 @@ message LoginResponse {
   string message = 4;
 }
 
+message GetQRCodeResponse {
+  int32 code = 1;
+  string message = 2;
+  int32 ttl = 3;
+  message Data {
+    string url = 1;
+    string qrcode_key = 2;
+  }
+  Data data = 4;
+}
+
+message QRLoginResponse {
+  int32 code = 1;
+  string message = 2;
+  message Data {
+    string url = 1;
+    string refresh_token = 2;
+    int64 timestamp = 3;
+    int32 code = 4;
+    string message = 5;
+  }
+  Data data = 3;
+}
+
 message XRelationStatResponse {
   int32 code = 1;
   string message = 2;

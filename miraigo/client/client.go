@@ -1895,9 +1895,11 @@ func (c *QQClient) reverseConn(mode string) {
 	if wsAddr == "" {
 		wsAddr = "ws://localhost:3001"
 	}
+	header := http.Header{}
+	header.Set("Authorization", "Bearer "+config.GlobalConfig.GetString("websocket.token"))
 	logger.WithField("force", true).Printf("WebSocket reverse started on %s", wsAddr)
 	for {
-		ws, _, err = websocket.DefaultDialer.Dial(wsAddr, nil)
+		ws, _, err = websocket.DefaultDialer.Dial(wsAddr, header)
 		if err != nil {
 			logger.Debug("dial:", err)
 			time.Sleep(time.Second * 5)
@@ -1970,6 +1972,7 @@ func (c *QQClient) ReloadGroupMembers() error {
 	for _, group := range c.GroupList {
 		group.Members = nil
 		group.Members, err = c.GetGroupMembers(group)
+		logger.Debugf("群[%d]加载成员[%d]个\n", group.Code, len(group.Members))
 		if err != nil {
 			return err
 		}
@@ -2410,6 +2413,7 @@ func (c *QQClient) GetGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error)
 func (c *QQClient) getGroupMembers(group *GroupInfo) ([]*GroupMemberInfo, error) {
 	data, err := c.SendApi("get_group_member_list", map[string]any{
 		"group_id": group.Uin,
+		"no_cache": true,
 	})
 	if err != nil {
 		return nil, err
