@@ -14,6 +14,11 @@ import (
 	"github.com/guonaihong/gout/middler"
 )
 
+type RespHeader struct {
+	ContentDisposition string `header:"Content-Disposition"`
+	ContentLength      string `header:"Content-Length"`
+}
+
 var logger = utils.GetModuleLogger("request")
 
 var defaultUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36"
@@ -255,6 +260,18 @@ func Get(url string, params interface{}, out interface{}, options ...Option) err
 	return Do(func(gcli *gout.Client) *dataflow.DataFlow {
 		return gcli.GET(url).SetQuery(params)
 	}, out, options...)
+}
+
+func GetWithHeader(url string, params interface{}, out interface{}, respHeader interface{}, options ...Option) error {
+	return Do(func(gcli *gout.Client) *dataflow.DataFlow {
+		return gcli.GET(url).BindHeader(respHeader).SetQuery(params)
+	}, out, options...)
+}
+
+func Head(url string, params interface{}, rspHeaders interface{}, options ...Option) error {
+	return Do(func(gcli *gout.Client) *dataflow.DataFlow {
+		return gcli.HEAD(url).BindHeader(rspHeaders).SetQuery(params)
+	}, rspHeaders, options...)
 }
 
 func PostForm(url string, params gout.H, out interface{}, options ...Option) error {

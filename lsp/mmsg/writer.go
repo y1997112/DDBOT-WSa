@@ -147,20 +147,19 @@ func (m *MSG) ImageByUrl(url string, alternative string, opts ...requests.Option
 }
 
 func (m *MSG) ImageByUrlWithNorm(url string, alternative string, opts ...requests.Option) *MSG {
-	//发图部分 图片
-	// img := NewImageByUrl(url, opts...).Norm()
-	// if len(alternative) > 0 {
-	// 	img.Alternative(alternative)
-	// }
-	// return m.Append(img)
-
-	// 创建一个新的TextElement，其中包含格式化的URL
-	textElem := &message.TextElement{
-		Content: fmt.Sprintf("[CQ:image,file=%s]\n", url),
+	img := NewImageByUrl(url, opts...).Norm()
+	if len(alternative) > 0 {
+		img.Alternative(alternative)
 	}
+	return m.Append(img)
 
-	// 将新的TextElement添加到消息的Elements中
-	return m.Append(textElem)
+	//// 创建一个新的TextElement，其中包含格式化的URL
+	//textElem := &message.TextElement{
+	//	Content: fmt.Sprintf("[CQ:image,file=%s]\n", url),
+	//}
+	//
+	//// 将新的TextElement添加到消息的Elements中
+	//return m.Append(textElem)
 }
 
 func (m *MSG) ImageByUrlWithResize(url string, alternative string, width, height uint, opts ...requests.Option) *MSG {

@@ -860,3 +860,26 @@ func splitPlainMessage(content string) []IMessageElement {
 func textNeedSplit(content string) bool {
 	return len(content) > MaxMessageSize
 }
+
+// video 部分
+func (e *VideoElement) WithName(name string) *VideoElement {
+	e.Name = name
+	return e
+}
+
+func (e *VideoElement) WithThumb(thumb string) *VideoElement {
+	e.Thumb = thumb
+	return e
+}
+
+// record 部分
+func (e *RecordElement) WithName(name string) *RecordElement {
+	e.Name = name
+	return e
+}
+
+// file 部分
+func (e *FileElement) WithName(name string) *FileElement {
+	e.Name = name
+	return e
+}

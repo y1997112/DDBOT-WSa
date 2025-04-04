@@ -311,7 +311,8 @@ func getScore(uin int64, groupCode int64) int64 {
 func picUri(uri string) (e *mmsg.ImageBytesElement) {
 	logger := logger.WithField("uri", uri)
 	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
-		e = mmsg.NewImageByUrlWithoutCache(uri)
+		e = mmsg.NewImage(nil, uri)
+		//e = mmsg.NewImageByUrlWithoutCache(uri)
 	} else {
 		fi, err := os.Stat(uri)
 		if err != nil {
@@ -370,7 +371,7 @@ func pic(input interface{}, alternative ...string) *mmsg.ImageBytesElement {
 	case []byte:
 		return mmsg.NewImage(e).Alternative(alt)
 	default:
-		panic(fmt.Sprintf("invalid input %v", input))
+		panic(fmt.Sprintf("invalid pic %v", input))
 	}
 }
 
@@ -740,4 +741,253 @@ func jsonToDictOrArray(jsonByte []byte, isArray bool) (interface{}, error) {
 		}
 		return result, nil
 	}
+}
+
+func videoUri(uri string) (e *mmsg.VideoElement) {
+	logger := logger.WithField("uri", uri)
+	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
+		e = mmsg.NewVideo(uri)
+		//e = mmsg.NewVideoByUrl(uri)
+	} else {
+		fi, err := os.Stat(uri)
+		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Errorf("template: video uri doesn't exist")
+			} else {
+				logger.Errorf("template: video uri Stat error %v", err)
+			}
+			goto END
+		}
+		if fi.IsDir() {
+			f, err := os.Open(uri)
+			if err != nil {
+				logger.Errorf("template: video uri Open error %v", err)
+				goto END
+			}
+			dirs, err := f.ReadDir(-1)
+			if err != nil {
+				logger.Errorf("template: video uri ReadDir error %v", err)
+				goto END
+			}
+			var result []os.DirEntry
+			for _, file := range dirs {
+				if file.IsDir() || !(strings.HasSuffix(file.Name(), ".mp4")) {
+					continue
+				}
+				result = append(result, file)
+			}
+			if len(result) > 0 {
+				e = mmsg.NewVideo("", openFile(filepath.Join(uri, result[rand.Intn(len(result))].Name())))
+			} else {
+				logger.Errorf("template: video uri can not find any videos")
+			}
+		}
+	END:
+		if e == nil {
+			e = mmsg.NewVideo(uri)
+		}
+	}
+	return e
+}
+
+func video(input interface{}, name ...string) *mmsg.VideoElement {
+	var alt string
+	if len(name) > 0 && len(name[0]) > 0 {
+		alt = name[0]
+	}
+	switch e := input.(type) {
+	case string:
+		if b, err := base64.StdEncoding.DecodeString(e); err == nil {
+			return mmsg.NewVideo("", b).Alternative(alt)
+		}
+		return videoUri(e).Alternative(alt)
+	case []byte:
+		return mmsg.NewVideo("", e).Alternative(alt)
+	default:
+		panic(fmt.Sprintf("invalid video %v", input))
+	}
+}
+
+func recordUri(uri string) (e *mmsg.RecordElement) {
+	logger := logger.WithField("uri", uri)
+	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
+		e = mmsg.NewRecord(uri)
+		//e = mmsg.NewRecordByUrl(uri)
+	} else {
+		fi, err := os.Stat(uri)
+		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Errorf("template: record uri doesn't exist")
+			} else {
+				logger.Errorf("template: record uri Stat error %v", err)
+			}
+			goto END
+		}
+		if fi.IsDir() {
+			f, err := os.Open(uri)
+			if err != nil {
+				logger.Errorf("template: record uri Open error %v", err)
+				goto END
+			}
+			dirs, err := f.ReadDir(-1)
+			if err != nil {
+				logger.Errorf("template: record uri ReadDir error %v", err)
+				goto END
+			}
+			var result []os.DirEntry
+			for _, file := range dirs {
+				if file.IsDir() || !(strings.HasSuffix(file.Name(), ".mp3") ||
+					!(strings.HasSuffix(file.Name(), ".wav")) ||
+					!(strings.HasSuffix(file.Name(), ".ogg"))) {
+					continue
+				}
+				result = append(result, file)
+			}
+			if len(result) > 0 {
+				e = mmsg.NewRecord("", openFile(filepath.Join(uri, result[rand.Intn(len(result))].Name())))
+			} else {
+				logger.Errorf("template: record uri can not find any records")
+			}
+		}
+	END:
+		if e == nil {
+			e = mmsg.NewRecord(uri)
+		}
+	}
+	return e
+}
+
+func record(input interface{}, name ...string) *mmsg.RecordElement {
+	var alt string
+	if len(name) > 0 && len(name[0]) > 0 {
+		alt = name[0]
+	}
+	switch e := input.(type) {
+	case string:
+		if b, err := base64.StdEncoding.DecodeString(e); err == nil {
+			return mmsg.NewRecord("", b).Alternative(alt)
+		}
+		return recordUri(e).Alternative(alt)
+	case []byte:
+		return mmsg.NewRecord("", e).Alternative(alt)
+	default:
+		panic(fmt.Sprintf("invalid record %v", input))
+	}
+}
+
+func fileUri(uri string) (e *mmsg.FileElement) {
+	logger := logger.WithField("uri", uri)
+	if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
+		e = mmsg.NewFile(uri)
+		//e = mmsg.NewFileByUrl(uri)
+	} else {
+		fi, err := os.Stat(uri)
+		if err != nil {
+			if os.IsNotExist(err) {
+				logger.Errorf("template: file uri doesn't exist")
+			} else {
+				logger.Errorf("template: file uri Stat error %v", err)
+			}
+			goto END
+		}
+		if fi.IsDir() {
+			f, err := os.Open(uri)
+			if err != nil {
+				logger.Errorf("template: file uri Open error %v", err)
+				goto END
+			}
+			dirs, err := f.ReadDir(-1)
+			if err != nil {
+				logger.Errorf("template: file uri ReadDir error %v", err)
+				goto END
+			}
+			var result []os.DirEntry
+			for _, file := range dirs {
+				result = append(result, file)
+			}
+			if len(result) > 0 {
+				f := result[rand.Intn(len(result))].Name()
+				e = mmsg.NewFile("", openFile(filepath.Join(uri, f))).Name(f)
+			} else {
+				logger.Errorf("template: file uri can not find any files")
+			}
+		}
+	END:
+		if e == nil {
+			e = mmsg.NewFile(uri)
+		}
+	}
+	return e
+}
+
+func file(input interface{}, name ...string) *mmsg.FileElement {
+	var alt string
+	if len(name) > 0 && len(name[0]) > 0 {
+		alt = name[0]
+	}
+	switch e := input.(type) {
+	case string:
+		if b, err := base64.StdEncoding.DecodeString(e); err == nil {
+			return mmsg.NewFile("", b).Alternative(alt)
+		}
+		return fileUri(e).Alternative(alt)
+	case []byte:
+		return mmsg.NewFile("", e).Alternative(alt)
+	default:
+		panic(fmt.Sprintf("invalid file %v", input))
+	}
+}
+
+func remoteDownloadFile(urlOrBase64 string, opts ...interface{}) string {
+	var Url, Base64, name string
+	var headers []string
+
+	if urlOrBase64 == "" {
+		logger.Error("至少需要提供 url 或 base64 参数")
+		return ""
+	}
+
+	options := make(map[string]interface{})
+	for _, arg := range opts {
+		if m, ok := arg.(map[string]interface{}); ok {
+			for k, v := range m {
+				options[k] = v
+			}
+		}
+	}
+	if n, ok := options["name"].(string); ok {
+		name = n
+	}
+	if h, ok := options["headers"].([]string); ok {
+		headers = h
+	}
+
+	if strings.HasPrefix(urlOrBase64, "http://") || strings.HasPrefix(urlOrBase64, "https://") {
+		Url = urlOrBase64
+	} else if strings.HasPrefix(urlOrBase64, "base64://") {
+		Base64 = urlOrBase64
+	}
+
+	bot := localutils.GetBot()
+	if bot == nil {
+		logger.Error("bot 实例未找到")
+		return ""
+	}
+
+	ret, err := (*bot.Bot).QQClient.DownloadFile(Url, Base64, name, headers)
+	if err != nil {
+		logger.Errorf("文件下载失败: %v", err)
+	}
+	return ret
+}
+
+func loop(from, to int64) <-chan int64 {
+	ch := make(chan int64)
+	go func() {
+		for i := from; i <= to; i++ {
+			ch <- i
+		}
+		close(ch)
+	}()
+	return ch
 }

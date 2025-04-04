@@ -3,6 +3,7 @@ package mmsg
 import (
 	"encoding/base64"
 	"os"
+	"strings"
 
 	"github.com/Mrs4s/MiraiGo/message"
 	"github.com/Sora233/DDBOT/requests"
@@ -10,12 +11,24 @@ import (
 )
 
 type ImageBytesElement struct {
+	Url         string
 	Buf         []byte
 	alternative string
 }
 
-func NewImage(buf []byte) *ImageBytesElement {
-	return &ImageBytesElement{Buf: buf, alternative: "[图片]"}
+//func NewImage(buf []byte) *ImageBytesElement {
+//	return &ImageBytesElement{Buf: buf, alternative: ""}
+//}
+
+func NewImage(buf []byte, url ...any) *ImageBytesElement {
+	v := &ImageBytesElement{}
+	if buf != nil {
+		v.Buf = buf
+	}
+	if len(url) > 0 {
+		v.Url = url[0].(string)
+	}
+	return v
 }
 
 // NewImageByUrl 默认会对相同的url使用缓存
@@ -127,6 +140,14 @@ func (i *ImageBytesElement) Type() message.ElementType {
 func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement {
 	if i == nil {
 		return message.NewText("[空图片]\n")
+	} else if i.Url != "" {
+		var base64Text string
+		if strings.HasPrefix(i.Url, "http://") || strings.HasPrefix(i.Url, "https://") {
+			base64Text = "[CQ:image,file=" + i.Url + "]"
+		} else {
+			base64Text = "[CQ:image,file=file://" + strings.ReplaceAll(i.Url, `\`, `\\`) + "]"
+		}
+		return message.NewText(base64Text)
 	} else if i.Buf == nil {
 		logger.Debugf("TargetPrivate %v nil image buf", target.TargetCode())
 		return nil
@@ -134,6 +155,7 @@ func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement
 	logger.Debugf("转换base64图片")
 	base64Image := base64.StdEncoding.EncodeToString(i.Buf)      // 这里进行转换
 	base64Text := "[CQ:image,file=base64://" + base64Image + "]" // Base64 文本格式
+	return message.NewText(base64Text)
 
 	// switch target.TargetType() {
 	// case TargetPrivate:
@@ -158,8 +180,5 @@ func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement
 	// 	panic("ImageBytesElement PackToElement: unknown TargetType")
 	// }
 
-	if i.alternative == "" {
-		return message.NewText(base64Text)
-	}
 	return message.NewText(base64Text)
 }

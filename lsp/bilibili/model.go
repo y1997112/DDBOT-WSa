@@ -1,7 +1,6 @@
 package bilibili
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 
@@ -630,7 +629,6 @@ func (c *CacheCard) prepare() {
 		var skip = false
 		if shouldCombineImage(cardImage.GetItem().GetPictures()) {
 			var urls = make([]string, len(cardImage.GetItem().GetPictures()))
-			fmt.Printf("%v\n", urls)
 			for index, pic := range cardImage.GetItem().GetPictures() {
 				urls[index] = pic.GetImgSrc()
 			}
@@ -649,35 +647,14 @@ func (c *CacheCard) prepare() {
 					isNorm = true
 				}
 				if isNorm {
-					//fmt.Printf("Image URL: %s\n", pic.GetImgSrc()) // 使用 fmt.Printf
-					//我是傻逼
-
 					m.ImageByUrlWithNorm(pic.GetImgSrc(), "")
-					// elements := m.Elements() // 调用函数来获取Elements切片
-					// // 打印elements的数量
-					// fmt.Printf("Number of Elements in m: %d\n", len(elements))
-					// // 打印每个Element的类型
-					// for i, elem := range elements {
-					// 	fmt.Printf("Element %d is of type %T\n", i, elem)
-					// }
-
 				} else {
-					//fmt.Printf("Image URL: %s\n", pic.GetImgSrc()) // 使用 fmt.Printf
 					m.ImageByUrl(pic.GetImgSrc(), "")
-					// elements := m.Elements() // 调用函数来获取Elements切片
-					// // 打印elements的数量
-					// fmt.Printf("Number of Elements in m: %d\n", len(elements))
-					// // 打印每个Element的类型
-					// for i, elem := range elements {
-					// 	fmt.Printf("Element %d is of type %T\n", i, elem)
-					// }
-
 				}
 			}
 		}
 
 	case DynamicDescType_TextOnly:
-		fmt.Printf("88888888\n")
 		cardText, err := card.GetCardTextOnly()
 		if err != nil {
 			log.WithField("card", card).Errorf("GetCardTextOnly cast failed %v", err)
