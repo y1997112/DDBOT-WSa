@@ -1533,7 +1533,7 @@ func parseFileElement(contentMap map[string]interface{}, elements *[]message.IMe
 			*elements = append(*elements, &message.GroupFileElement{
 				Name: file["file"].(string),
 				Size: fileSize,
-				Path: file["path"].(string),
+				Path: file["file_id"].(string),
 			})
 		} else {
 			*elements = append(*elements, &message.FriendFileElement{
@@ -1726,6 +1726,31 @@ func (c *QQClient) GetGroupMemberInfo(groupCode int64, memberUin int64) (*GroupM
 		Gender:          sex,
 	}
 	return &ret, nil
+}
+
+func (c *QQClient) DownloadFile(url, base64, name string, headers []string) (string, error) {
+	if url == "" && base64 == "" {
+		return "", errors.New("url 或 base64 参数不能为空")
+	}
+	params := map[string]any{
+		"url":    url,
+		"base64": base64,
+		"name":   name,
+	}
+	if len(headers) > 0 {
+		params["headers"] = headers
+	}
+	
+	rsp, err := c.SendApi("download_file", params)
+	if err != nil {
+		return "", fmt.Errorf("API请求失败: %w", err)
+	}
+
+	if fileName, ok := rsp.(map[string]any)["file"].(string); ok {
+		return fileName, nil
+	}
+
+	return "", errors.New("无效的API响应结构")
 }
 
 func (c *QQClient) SendApi(api string, params map[string]any, expTime ...float64) (any, error) {

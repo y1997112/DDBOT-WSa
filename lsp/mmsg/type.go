@@ -10,6 +10,9 @@ const (
 	Cut
 	At
 	Poke
+	Video
+	Record
+	File
 )
 
 type CustomElement interface {

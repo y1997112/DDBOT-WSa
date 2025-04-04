@@ -76,6 +76,37 @@ type ShortVideoElement struct {
 	Guild     bool
 }
 
+type VideoElement struct {
+	File       any    // B64、文件路径、URL
+	Name       string // 发(可选)
+	Thumb      string // 发(可选)
+	Url        string // 收
+	Path       string // 收
+	FileId     string // 收
+	FileSize   int64  // 收
+	FileUnique string // 收
+}
+
+type RecordElement struct {
+	File       any    // B64、文件路径、URL
+	Name       string // 发(可选)
+	Url        string // 收
+	Path       string // 收
+	FileId     string // 收
+	FileSize   int64  // 收
+	FileUnique string // 收
+}
+
+type FileElement struct {
+	File       any    // B64、文件路径、URL
+	Name       string // 发(可选)
+	Url        string // 收
+	Path       string // 收
+	FileId     string // 收
+	FileSize   int64  // 收
+	FileUnique string // 收
+}
+
 type ServiceElement struct {
 	Id      int32
 	Content string
@@ -142,6 +173,18 @@ const (
 	AtTypeGuildMember  = 1 // At频道成员
 	AtTypeGuildChannel = 2 // At频道
 )
+
+func NewVideo(file any) *VideoElement {
+	return &VideoElement{File: file}
+}
+
+func NewRecord(file any) *RecordElement {
+	return &RecordElement{File: file}
+}
+
+func NewFile(file any) *FileElement {
+	return &FileElement{File: file}
+}
 
 func NewText(s string) *TextElement {
 	return &TextElement{Content: s}
@@ -289,4 +332,16 @@ func (e *RedBagElement) Type() ElementType {
 
 func (e *AnimatedSticker) Type() ElementType {
 	return Face
+}
+
+func (e *VideoElement) Type() ElementType {
+	return Video
+}
+
+func (e *RecordElement) Type() ElementType {
+	return Voice
+}
+
+func (e *FileElement) Type() ElementType {
+	return File
 }

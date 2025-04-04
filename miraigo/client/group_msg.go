@@ -73,21 +73,28 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 		finalGroupID = originalGroupID
 	}
 	// 图片数量统计
-	imgCount := 0
+	imgCount, videoCount, recordCount, fileCount := 0, 0, 0, 0
 	for _, e := range m.Elements {
 		switch e.Type() {
 		case message.Image:
 			imgCount++
+		case message.Video:
+			videoCount++
+		case message.Voice:
+			recordCount++
+		case message.File:
+			fileCount++
 		}
 	}
 	//判定消息长度限制
 	msgLen := message.EstimateLength(m.Elements)
-	imgLen := 0
+	imgLen, videoLen, recordLen, fileLen := 0, 0, 0, 0
 	totalLen := 0
 	if len(m.Elements) > 0 {
 		for _, e := range m.Elements {
 			//判断消息是否为图片
 			if text, ok := e.(*message.TextElement); ok {
+				// 寻找图片
 				re := regexp.MustCompile(`\[CQ:image,file=(.*?)\]`)
 				picCount := re.FindAllStringIndex(text.Content, -1)
 				imgCount += len(picCount)
@@ -99,10 +106,46 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 					imgLen += tmpLen
 					msgLen -= tmpLen
 				}
+				// 寻找视频
+				re = regexp.MustCompile(`\[CQ:video,file=(.*?)\]`)
+				vCount := re.FindAllStringIndex(text.Content, -1)
+				videoCount += len(vCount)
+				if videoCount > 0 {
+					tmpLen := 0
+					for _, v := range vCount {
+						tmpLen += v[1] - v[0]
+					}
+					videoLen += tmpLen
+					msgLen -= tmpLen
+				}
+				// 寻找语音
+				re = regexp.MustCompile(`\[CQ:record,file=(.*?)\]`)
+				rCount := re.FindAllStringIndex(text.Content, -1)
+				recordCount += len(rCount)
+				if recordCount > 0 {
+					tmpLen := 0
+					for _, r := range rCount {
+						tmpLen += r[1] - r[0]
+					}
+					recordLen += tmpLen
+					msgLen -= tmpLen
+				}
+				// 寻找文件
+				re = regexp.MustCompile(`\[CQ:file,file=(.*?)\]`)
+				fCount := re.FindAllStringIndex(text.Content, -1)
+				fileCount += len(fCount)
+				if fileCount > 0 {
+					tmpLen := 0
+					for _, r := range fCount {
+						tmpLen += r[1] - r[0]
+					}
+					fileLen += tmpLen
+					msgLen -= tmpLen
+				}
 			}
 		}
-		totalLen = msgLen + imgLen
-		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 长度：%d", totalLen, msgLen, imgCount, imgLen)
+		totalLen = msgLen + imgLen + recordLen + fileLen
+		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 视频: %d, 语音：%d, 文件：%d", totalLen, msgLen, imgCount, videoCount, recordCount, fileCount)
 	}
 	//判断是否超过最大发送长度
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
@@ -126,8 +169,8 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 	// respChan := make(chan *ResponseSendMessage)
 	// c.responseMessage[echo] = respChan
 	expTime := math.Ceil(float64(totalLen) / 131072)
-	if totalLen < 1024 && imgCount > 0 {
-		expTime = 90
+	if totalLen < 1024 && (imgCount > 0 || videoCount > 0 || recordLen > 0 || fileLen > 0) {
+		expTime = 120
 	}
 	expTime += 6
 	tmpMsg := ""
