@@ -28,14 +28,6 @@ func (c *cronjobRun) Run() {
 				"target": groupCode,
 			})
 			if m != nil {
-				// fmt.Printf("插件的发送分发区:")
-				// elements := m.Elements() // 调用函数来获取Elements切片
-				// // 打印elements的数量
-				// fmt.Printf("Number of Elements in m: %d\n", len(elements))
-				// // 打印每个Element的类型
-				// for i, elem := range elements {
-				// 	fmt.Printf("Element %d is of type %T\n", i, elem)
-				// }
 				c.l.SendMsg(m, mmsg.NewGroupTarget(groupCode))
 			}
 		}
