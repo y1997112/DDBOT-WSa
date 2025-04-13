@@ -36,7 +36,7 @@ var cj atomic.Pointer[cookiejar.Jar]
 
 func refreshCookieJar() {
 	j, _ := cookiejar.New(nil)
-	err := requests.Get("https://bilibili.com", nil, io.Discard,
+	err := requests.Get("https://www.bilibili.com/", nil, io.Discard,
 		requests.WithCookieJar(j),
 		AddUAOption(),
 		requests.RequestAutoHostOption(),
@@ -151,8 +151,8 @@ func XSpaceAccInfo(mid int64) (*XSpaceAccInfoResponse, error) {
 		requests.HeaderOption("Origin", headerOrigin),
 		requests.HeaderOption("Referer", headerOrigin+"/"+strconv.FormatInt(mid, 10)),
 		requests.HeaderOption("User-Agent", headerUserAgent),
-		requests.CookieOption("buvid3", headerBuvId3),
-		requests.CookieOption("b_nut", headerBNut),
+		//requests.CookieOption("buvid3", headerBuvId3),
+		//requests.CookieOption("b_nut", headerBNut),
 		requests.CookieOption("b_lsid", headerBLsid),
 		requests.CookieOption("_uuid", headerUuid),
 		requests.RequestAutoHostOption(),

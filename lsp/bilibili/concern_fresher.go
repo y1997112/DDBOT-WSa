@@ -153,21 +153,49 @@ func (c *Concern) fresh() concern.FreshFunc {
 								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
 									Errorf("clear notlive count error %v", err)
 							}
-							resp, err := XSpaceAccInfo(mid)
+							//resp, err := XSpaceAccInfo(mid)
+							//if err != nil {
+							//	logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
+							//		Errorf("XSpaceAccInfo error %v", err)
+							//	continue
+							//}
+							//if resp.GetData().GetLiveRoom().GetLiveStatus() == LiveStatus_Living {
+							//	continue
+							//} else {
+							//	logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
+							//		Debug("XSpaceAccInfo notlive confirmed")
+							//}
+							//newInfo = NewLiveInfo(&oldInfo.UserInfo, resp.GetData().GetLiveRoom().GetTitle(),
+							//	resp.GetData().GetLiveRoom().GetCover(), LiveStatus_NoLiving)
+							//newInfo.Name = resp.GetData().GetName()
+							roomId := oldInfo.RoomId
+							tmp, err := c.GetLiveInfo(selfUid)
 							if err != nil {
 								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
-									Errorf("XSpaceAccInfo error %v", err)
+									WithField("room_id", roomId).Errorf("GetRoomInfo error %v", err)
+							}
+							fmt.Printf("tmp:SelfUid %v\n", tmp)
+							resp, err := GetRoomInfo(roomId)
+							if err != nil || resp.Data.Uid != mid {
+								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
+									WithField("room_id", roomId).Errorf("GetRoomInfo error %v", err)
 								continue
 							}
-							if resp.GetData().GetLiveRoom().GetLiveStatus() == LiveStatus_Living {
+							if resp.GetLiveStatus() == LiveStatus_Living {
 								continue
 							} else {
 								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
 									Debug("XSpaceAccInfo notlive confirmed")
 							}
-							newInfo = NewLiveInfo(&oldInfo.UserInfo, resp.GetData().GetLiveRoom().GetTitle(),
-								resp.GetData().GetLiveRoom().GetCover(), LiveStatus_NoLiving)
-							newInfo.Name = resp.GetData().GetName()
+							resp2, err := GetPlayTogetherUserAnchorInfoV2(mid)
+							if err != nil {
+								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
+									WithField("room_id", roomId).Errorf("GetPlayTogetherUserAnchorInfoV2 error %v", err)
+								continue
+							}
+							newInfo = NewLiveInfo(&oldInfo.UserInfo, resp.GetTitle(),
+								resp.GetCover(), LiveStatus_NoLiving)
+							newInfo.Name = resp2.GetName()
 							newInfo.liveStatusChanged = true
 							sendLiveInfo(newInfo)
 						} else {

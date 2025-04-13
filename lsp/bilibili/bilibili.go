@@ -32,19 +32,21 @@ const (
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 var BasePath = map[string]string{
-	PathXSpaceAccInfo:            BaseHost,
-	PathDynamicSrvSpaceHistory:   BaseVCHost,
-	PathDynamicSrvDynamicNew:     BaseVCHost,
-	PathRelationModify:           BaseHost,
-	PathRelationFeedList:         BaseLiveHost,
-	PathGetAttentionList:         BaseVCHost,
-	PathPassportLoginWebKey:      PassportHost,
-	PathPassportLoginOAuth2Login: PassportHost,
-	PathQRLoginGenerateQR:        PassportHost,
-	PathQRLoginOAuth2Login:       PassportHost,
-	PathXRelationStat:            BaseHost,
-	PathXWebInterfaceNav:         BaseHost,
-	PathDynamicSrvDynamicHistory: BaseVCHost,
+	PathXSpaceAccInfo:                   BaseHost,
+	PathDynamicSrvSpaceHistory:          BaseVCHost,
+	PathDynamicSrvDynamicNew:            BaseVCHost,
+	PathRelationModify:                  BaseHost,
+	PathRelationFeedList:                BaseLiveHost,
+	PathGetAttentionList:                BaseVCHost,
+	PathPassportLoginWebKey:             PassportHost,
+	PathPassportLoginOAuth2Login:        PassportHost,
+	PathQRLoginGenerateQR:               PassportHost,
+	PathQRLoginOAuth2Login:              PassportHost,
+	PathXRelationStat:                   BaseHost,
+	PathXWebInterfaceNav:                BaseHost,
+	PathDynamicSrvDynamicHistory:        BaseVCHost,
+	PathGetPlayTogetherUserAnchorInfoV2: BaseLiveHost,
+	PathRoomInfo:                        BaseLiveHost,
 }
 
 type VerifyInfo struct {
