@@ -1,9 +1,9 @@
 package bilibili
 
 import (
-	"github.com/Sora233/DDBOT/proxy_pool"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils"
+	"git.znin.net/alen/DDBOT-WSa/proxy_pool"
+	"git.znin.net/alen/DDBOT-WSa/requests"
+	"git.znin.net/alen/DDBOT-WSa/utils"
 	"time"
 )
 
@@ -30,6 +30,7 @@ func GetPlayTogetherUserAnchorInfoV2(mid int64) (*GetPlayTogetherUserAnchorInfoV
 		requests.WithCookieJar(cj.Load()),
 	}
 	opts = append(opts, GetVerifyOption()...)
+	// 查自己的话只会有anchor_nickname和anchor_avatar
 	var resp = new(GetPlayTogetherUserAnchorInfoV2Response)
 	err = requests.Get(BPath(PathGetPlayTogetherUserAnchorInfoV2), params, resp, opts...)
 	if err != nil {

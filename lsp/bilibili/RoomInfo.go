@@ -1,9 +1,10 @@
 package bilibili
 
 import (
-	"github.com/Sora233/DDBOT/proxy_pool"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils"
+	"git.znin.net/alen/DDBOT-WSa/proxy_pool"
+	"git.znin.net/alen/DDBOT-WSa/requests"
+	"git.znin.net/alen/DDBOT-WSa/utils"
+	"strconv"
 	"time"
 )
 
@@ -51,4 +52,8 @@ func (l *LiveRoomData) GetCover() string {
 
 func (l *LiveRoomData) GetTitle() string {
 	return l.Data.Title
+}
+
+func (l *LiveRoomData) GetUrl() string {
+	return "https://live.bilibili.com/" + strconv.FormatInt(l.Data.RoomId, 10)
 }

@@ -3,9 +3,9 @@ package bilibili
 import (
 	"context"
 	"fmt"
-	"github.com/Sora233/DDBOT/lsp/cfg"
-	"github.com/Sora233/DDBOT/lsp/concern"
-	"github.com/Sora233/DDBOT/lsp/concern_type"
+	"git.znin.net/alen/DDBOT-WSa/lsp/cfg"
+	"git.znin.net/alen/DDBOT-WSa/lsp/concern"
+	"git.znin.net/alen/DDBOT-WSa/lsp/concern_type"
 	"github.com/Sora233/MiraiGo-Template/config"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/buntdb"
@@ -106,18 +106,43 @@ func (c *Concern) fresh() concern.FreshFunc {
 					mid := id.(int64)
 					if selfUid != 0 && selfUid == mid {
 						// 特殊处理下关注自己
-						accResp, err := XSpaceAccInfo(selfUid)
+						selfInfo, err := c.GetUserInfo(selfUid)
 						if err != nil {
-							logger.Errorf("freshLive self-fresh %v error %v", selfUid, err)
-							return err
+							logger.WithField("uid", mid).WithField("name", selfInfo.Name).
+								WithField("room_id", selfInfo.RoomId).Errorf("GetRoomInfo error %v", err)
+							continue
 						}
-						liveRoom := accResp.GetData().GetLiveRoom()
+						roomId := selfInfo.RoomId
+						resp, err := GetRoomInfo(roomId)
+						if err != nil {
+							logger.WithField("uid", mid).WithField("name", selfInfo.Name).
+								WithField("room_id", roomId).Errorf("GetRoomInfo error %v", err)
+							continue
+						}
+						resp2, err := GetPlayTogetherUserAnchorInfoV2(mid)
+						if err != nil {
+							logger.WithField("uid", mid).WithField("name", selfInfo.Name).
+								WithField("room_id", roomId).Errorf("GetPlayTogetherUserAnchorInfoV2 error %v", err)
+							continue
+						}
 						selfLiveInfo := NewLiveInfo(
-							NewUserInfo(selfUid, liveRoom.GetRoomid(), accResp.GetData().GetName(), liveRoom.GetUrl()),
-							liveRoom.GetTitle(),
-							liveRoom.GetCover(),
-							liveRoom.GetLiveStatus(),
+							NewUserInfo(mid, resp.Data.RoomId, resp2.GetName(), resp.GetUrl()),
+							resp.GetTitle(),
+							resp.GetCover(),
+							resp.GetLiveStatus(),
 						)
+						//accResp, err := XSpaceAccInfo(selfUid)
+						//if err != nil {
+						//	logger.Errorf("freshLive self-fresh %v error %v", selfUid, err)
+						//	return err
+						//}
+						//liveRoom := accResp.GetData().GetLiveRoom()
+						//selfLiveInfo := NewLiveInfo(
+						//	NewUserInfo(selfUid, liveRoom.GetRoomid(), accResp.GetData().GetName(), liveRoom.GetUrl()),
+						//	liveRoom.GetTitle(),
+						//	liveRoom.GetCover(),
+						//	liveRoom.GetLiveStatus(),
+						//)
 						if selfLiveInfo.Living() {
 							liveInfoMap[selfUid] = selfLiveInfo
 						}
@@ -169,12 +194,6 @@ func (c *Concern) fresh() concern.FreshFunc {
 							//	resp.GetData().GetLiveRoom().GetCover(), LiveStatus_NoLiving)
 							//newInfo.Name = resp.GetData().GetName()
 							roomId := oldInfo.RoomId
-							tmp, err := c.GetLiveInfo(selfUid)
-							if err != nil {
-								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
-									WithField("room_id", roomId).Errorf("GetRoomInfo error %v", err)
-							}
-							fmt.Printf("tmp:SelfUid %v\n", tmp)
 							resp, err := GetRoomInfo(roomId)
 							if err != nil || resp.Data.Uid != mid {
 								logger.WithField("uid", mid).WithField("name", oldInfo.UserInfo.Name).
