@@ -8,7 +8,7 @@
       <env name="GOARCH" value="amd64" />
     </envs>
     <kind value="DIRECTORY" />
-    <package value="github.com/Sora233/DDBOT" />
+    <package value="github.com/cnxysoft/DDBOT-WSa" />
     <directory value="$PROJECT_DIR$/cmd" />
     <filePath value="$PROJECT_DIR$" />
     <output_directory value="$PROJECT_DIR$/dist" />

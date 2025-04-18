@@ -1,7 +1,7 @@
 package twitter
 
 import (
-	"github.com/Sora233/DDBOT/lsp/concern_type"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/concern_type"
 	"github.com/mmcdole/gofeed"
 	"github.com/sirupsen/logrus"
 	"strconv"

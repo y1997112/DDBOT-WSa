@@ -1,4 +1,4 @@
-module github.com/Sora233/DDBOT
+module github.com/cnxysoft/DDBOT-WSa
 
 go 1.20
 

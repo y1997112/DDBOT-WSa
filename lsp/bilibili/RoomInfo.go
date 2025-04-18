@@ -1,9 +1,9 @@
 package bilibili
 
 import (
-	"git.znin.net/alen/DDBOT-WSa/proxy_pool"
-	"git.znin.net/alen/DDBOT-WSa/requests"
-	"git.znin.net/alen/DDBOT-WSa/utils"
+	"github.com/cnxysoft/DDBOT-WSa/proxy_pool"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 	"strconv"
 	"time"
 )

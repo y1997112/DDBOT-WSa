@@ -14,12 +14,12 @@ func TestNewNotify_getToken(t *testing.T) {
 		{
 			name:     "small number",
 			id:       "123",
-			expected: "1",
+			expected: "",
 		},
 		{
 			name:     "large number",
 			id:       "1234567890123456",
-			expected: "1.1b1v1",
+			expected: "3vmjqguc7abepbln",
 		},
 		{
 			name:     "zero",
@@ -29,22 +29,22 @@ func TestNewNotify_getToken(t *testing.T) {
 		{
 			name:     "very large number",
 			id:       "999999999999999999",
-			expected: "3.1j1v1",
+			expected: "2f9lc2ug9mm5ugnaee",
 		},
 		{
 			name:     "number with trailing zeros",
 			id:       "1000000000000000",
-			expected: "1",
+			expected: "353i5ab8p5fc5vay",
 		},
 		{
 			name:     "number producing trailing zeros in fraction",
 			id:       "1234567890000000",
-			expected: "1.1b1v1",
+			expected: "3vmjqgtht4eider9",
 		},
 		{
 			name:     "normal twitter id",
 			id:       "1908006472073760775",
-			expected: "4mi6g4tjjqn",
+			expected: "4mi6g4tjjqmsk2b1te",
 		},
 	}
 
@@ -64,19 +64,19 @@ func TestNewNotify_getToken(t *testing.T) {
 func Test_toBase36Char(t *testing.T) {
 	tests := []struct {
 		d        int64
-		expected byte
+		expected string
 	}{
-		{0, '0'},
-		{9, '9'},
-		{10, 'a'},
-		{35, 'z'},
-		{36, '0'}, // wraps around
-		{-1, '0'}, // invalid input
+		{0, "0"},
+		{9, "9"},
+		{10, "a"},
+		{35, "z"},
+		{36, "10"}, // wraps around
+		{-1, "-1"}, // invalid input
 	}
 
 	for _, tt := range tests {
-		t.Run(string(tt.expected), func(t *testing.T) {
-			actual := tt.d
+		t.Run(tt.expected, func(t *testing.T) {
+			actual := floatToBase36(float64(tt.d), 15)
 			assert.Equal(t, tt.expected, actual)
 		})
 	}

@@ -1,6 +1,6 @@
 package twitter
 
-import "github.com/Sora233/DDBOT/lsp/concern"
+import "github.com/cnxysoft/DDBOT-WSa/lsp/concern"
 
 // GroupConcernConfig 创建一个新结构，准备重写 FilterHook
 type GroupConcernConfig struct {

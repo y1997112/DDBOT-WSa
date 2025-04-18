@@ -11,22 +11,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Sora233/DDBOT/lsp"
-	"github.com/Sora233/DDBOT/warn"
 	"github.com/Sora233/MiraiGo-Template/bot"
 	"github.com/Sora233/MiraiGo-Template/config"
+	"github.com/cnxysoft/DDBOT-WSa/lsp"
+	"github.com/cnxysoft/DDBOT-WSa/warn"
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 
-	_ "github.com/Sora233/DDBOT/logging"
-	_ "github.com/Sora233/DDBOT/lsp/acfun"
-	_ "github.com/Sora233/DDBOT/lsp/douyu"
-	_ "github.com/Sora233/DDBOT/lsp/huya"
-	_ "github.com/Sora233/DDBOT/lsp/twitcasting"
-	_ "github.com/Sora233/DDBOT/lsp/weibo"
-	_ "github.com/Sora233/DDBOT/lsp/youtube"
-	_ "github.com/Sora233/DDBOT/msg-marker"
+	_ "github.com/cnxysoft/DDBOT-WSa/logging"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/acfun"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/douyu"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/huya"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/twitcasting"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/weibo"
+	_ "github.com/cnxysoft/DDBOT-WSa/lsp/youtube"
+	_ "github.com/cnxysoft/DDBOT-WSa/msg-marker"
 )
 
 // SetUpLog 使用默认的日志格式配置，会写入到logs文件夹内，日志会保留七天

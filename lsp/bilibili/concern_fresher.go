@@ -3,10 +3,10 @@ package bilibili
 import (
 	"context"
 	"fmt"
-	"git.znin.net/alen/DDBOT-WSa/lsp/cfg"
-	"git.znin.net/alen/DDBOT-WSa/lsp/concern"
-	"git.znin.net/alen/DDBOT-WSa/lsp/concern_type"
 	"github.com/Sora233/MiraiGo-Template/config"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/cfg"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/concern"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/concern_type"
 	"github.com/sirupsen/logrus"
 	"github.com/tidwall/buntdb"
 	"go.uber.org/atomic"

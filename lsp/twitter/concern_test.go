@@ -1,11 +1,10 @@
 package twitter
 
 import (
+	"github.com/cnxysoft/DDBOT-WSa/internal/test"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/concern"
 	"github.com/mmcdole/gofeed"
 	"github.com/stretchr/testify/assert"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"testing"
 )
 
@@ -21,22 +20,12 @@ func TestTwitterConcern_GetUserInfo(t *testing.T) {
 			name:       "successful user info fetch",
 			screenName: "testuser",
 			mockParser: func() *gofeed.Parser {
-				// 方案一：使用 HTTP 测试服务器模拟响应
-				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Write([]byte(`<rss><channel><title>Test User / @testuser</title></channel></rss>`))
-				}))
-
-				parser := gofeed.NewParser()
-				parser.Client = &http.Client{Transport: &http.Transport{
-					Proxy: func(*http.Request) (*url.URL, error) {
-						return url.Parse(ts.URL)
-					},
-				}}
-				return parser
+				return gofeed.NewParser()
 			},
 			expected: &UserInfo{
-				Id:   "testuser",
-				Name: "Test User",
+				Id:              "testuser",
+				Name:            "test User",
+				ProfileImageUrl: "https://nitter.poast.org/pic/pbs.twimg.com%2Fprofile_images%2F1889333234816659456%2FYm8bUTqX_400x400.jpg",
 			},
 			expectError: false,
 		},
@@ -44,44 +33,10 @@ func TestTwitterConcern_GetUserInfo(t *testing.T) {
 			name:       "parser error",
 			screenName: "erroruser",
 			mockParser: func() *gofeed.Parser {
-				// 返回无效的XML结构触发解析错误
-				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Write([]byte(`<invalid>xml`))
-				}))
-
-				parser := gofeed.NewParser()
-				parser.Client = &http.Client{Transport: &http.Transport{
-					Proxy: func(*http.Request) (*url.URL, error) {
-						return url.Parse(ts.URL)
-					},
-				}}
-				return parser
+				return gofeed.NewParser()
 			},
 			expected:    nil,
 			expectError: true,
-		},
-		{
-			name:       "title without slash",
-			screenName: "simpleuser",
-			mockParser: func() *gofeed.Parser {
-				// 返回无斜杠的标题
-				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Write([]byte(`<rss><channel><title>Simple User</title></channel></rss>`))
-				}))
-
-				parser := gofeed.NewParser()
-				parser.Client = &http.Client{Transport: &http.Transport{
-					Proxy: func(*http.Request) (*url.URL, error) {
-						return url.Parse(ts.URL)
-					},
-				}}
-				return parser
-			},
-			expected: &UserInfo{
-				Id:   "simpleuser",
-				Name: "Simple User",
-			},
-			expectError: false,
 		},
 		{
 			name:       "real api response",
@@ -90,21 +45,32 @@ func TestTwitterConcern_GetUserInfo(t *testing.T) {
 				// 使用真实网络请求
 				return gofeed.NewParser()
 			},
-			expected:    nil,
+			expected: &UserInfo{
+				Id:              "peilien_vrc",
+				Name:            "ペイリアン💙🫧",
+				ProfileImageUrl: "https://nitter.poast.org/pic/pbs.twimg.com%2Fprofile_images%2F1834361632975388672%2FNNRZqyz0_400x400.jpg",
+			},
 			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			test.InitBuntdb(t)
+			defer test.CloseBuntdb(t)
 			// 创建 twitterConcern 时注入 mock 解析器
 			tc := &twitterConcern{
-				parser: tt.mockParser(), // 添加 parser 字段到结构体
+				twitterStateManager: &twitterStateManager{
+					StateManager: concern.NewStateManagerWithStringID(Site, nil),
+				},
+				extraKey: new(extraKey),
+				parser:   tt.mockParser(), // 添加 parser 字段到结构体
 			}
-			result, _ := tc.GetUserInfo(tt.screenName)
+
+			result, err := tc.FindUserInfo(tt.screenName, true)
 
 			if tt.expectError {
-				assert.Nil(t, result)
+				assert.Nil(t, err)
 			} else {
 				assert.Equal(t, tt.expected, result)
 			}

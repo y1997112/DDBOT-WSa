@@ -3,8 +3,8 @@ package utils
 import (
 	"bytes"
 	"errors"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils/blockCache"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils/blockCache"
 	"net/url"
 	"strings"
 	"time"

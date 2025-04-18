@@ -1,6 +1,6 @@
 package twitter
 
-import "github.com/Sora233/DDBOT/lsp/concern"
+import "github.com/cnxysoft/DDBOT-WSa/lsp/concern"
 
 func init() {
 	concern.RegisterConcern(newConcern(concern.GetNotifyChan()))

@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"git.znin.net/alen/DDBOT-WSa/requests"
-	"git.znin.net/alen/DDBOT-WSa/utils"
 	"github.com/Mrs4s/MiraiGo/message"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 )
 
 type ImageBytesElement struct {

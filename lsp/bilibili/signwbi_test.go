@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Sora233/DDBOT/utils"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 )
 
 func TestSignWbi(t *testing.T) {

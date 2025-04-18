@@ -16,11 +16,11 @@ import (
 
 	"github.com/Mrs4s/MiraiGo/client"
 	"github.com/Mrs4s/MiraiGo/message"
-	localdb "github.com/Sora233/DDBOT/lsp/buntdb"
-	"github.com/Sora233/DDBOT/lsp/cfg"
-	"github.com/Sora233/DDBOT/lsp/interfaces"
-	"github.com/Sora233/DDBOT/lsp/mmsg"
-	localutils "github.com/Sora233/DDBOT/utils"
+	localdb "github.com/cnxysoft/DDBOT-WSa/lsp/buntdb"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/cfg"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/interfaces"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/mmsg"
+	localutils "github.com/cnxysoft/DDBOT-WSa/utils"
 	"github.com/shopspring/decimal"
 )
 

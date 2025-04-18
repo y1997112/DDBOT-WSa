@@ -3,8 +3,8 @@ package lsp
 import (
 	"time"
 
-	"git.znin.net/alen/DDBOT-WSa/proxy_pool"
-	"git.znin.net/alen/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/proxy_pool"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,7 +44,7 @@ func CheckUpdate() string {
 	latestTagName := m["tag_name"].(string)
 
 	if compareVersion(Tags, latestTagName) {
-		logrus.Infof("更新检测完成：DDBOT有可用更新版本【%v】，请前往 https://git.znin.net/alen/DDBOT-WSa/releases 查看详细信息", latestTagName)
+		logrus.Infof("更新检测完成：DDBOT有可用更新版本【%v】，请前往 https://github.com/cnxysoft/DDBOT-WSa/releases 查看详细信息", latestTagName)
 		return latestTagName
 	} else {
 		logrus.Debug("更新检测完成：当前为DDBOT最新版本")
