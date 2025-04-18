@@ -1740,7 +1740,7 @@ func (c *QQClient) DownloadFile(url, base64, name string, headers []string) (str
 	if len(headers) > 0 {
 		params["headers"] = headers
 	}
-	
+
 	rsp, err := c.SendApi("download_file", params)
 	if err != nil {
 		return "", fmt.Errorf("API请求失败: %w", err)
@@ -1878,34 +1878,48 @@ func (c *QQClient) SyncGroupMembers(groupID DynamicInt64) {
 	}
 }
 
+var (
+	registerOnce sync.Once
+	wsUpgrader   = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+)
+
 func (c *QQClient) StartWebSocketServer() {
 	wsMode := config.GlobalConfig.GetString("websocket.mode")
 	if wsMode == "" {
 		wsMode = "ws-server"
 	}
+
 	if wsMode == "ws-server" {
-		http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-			ws, err := upgrader.Upgrade(w, r, nil)
-			if err != nil {
-				//log.Println(err)
-				logger.Error(err)
-				return
-			}
-			// 打印客户端的 headers
-			for name, values := range r.Header {
-				for _, value := range values {
-					logger.WithField(name, value).Debug()
+		registerOnce.Do(func() {
+			http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+				ws, err := wsUpgrader.Upgrade(w, r, nil)
+				if err != nil {
+					logger.Error(err)
+					return
 				}
+
+				// 打印客户端headers
+				for name, values := range r.Header {
+					for _, value := range values {
+						logger.WithField(name, value).Debug()
+					}
+				}
+
+				c.wsInit(ws, wsMode)
+			})
+
+			wsAddr := config.GlobalConfig.GetString("websocket.ws-server")
+			if wsAddr == "" {
+				wsAddr = "0.0.0.0:15630"
 			}
-			c.wsInit(ws, wsMode)
+
+			logger.WithField("force", true).Printf("WebSocket server started on ws://%s/ws", wsAddr)
+			go func() {
+				logger.Fatal(http.ListenAndServe(wsAddr, nil))
+			}()
 		})
-		// 启动监听
-		wsAddr := config.GlobalConfig.GetString("websocket.ws-server")
-		if wsAddr == "" {
-			wsAddr = "0.0.0.0:15630"
-		}
-		logger.WithField("force", true).Printf("WebSocket server started on ws://%s/ws", wsAddr)
-		logger.Fatal(http.ListenAndServe(wsAddr, nil))
 	} else {
 		c.disconnectChan = make(chan bool)
 		go c.reverseConn(wsMode)
