@@ -5,7 +5,7 @@
 [![GoDoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://pkg.go.dev/github.com/Sora233/DDBOT)
 
 DDBOT-WSa 是基于 DDBOT-ws 的修改版本，目的是恢复DDBOT的原有功能。
-新增的模板函数以及事件（触发）等其它更详细的更动见更新日志和[DDBOT部署教程](https://ddbot.tane.icu)。
+新增的模板函数以及事件（触发）等其它更详细的更动见更新日志和[DDBOT部署教程]([https://ddbot.songlist.icu])。
 目前已经兼容：LLOnebot / NapCat / Lagrange。
 
 **目前已经修复所有的主要指令（奇奇怪怪的指令没测试）。**
