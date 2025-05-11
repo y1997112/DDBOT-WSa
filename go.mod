@@ -1,8 +1,6 @@
 module github.com/cnxysoft/DDBOT-WSa
 
-go 1.22
-
-toolchain go1.23.4
+go 1.23.4
 
 replace github.com/Sora233/MiraiGo-Template => ./bot
 

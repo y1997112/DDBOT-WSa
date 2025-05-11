@@ -1179,7 +1179,7 @@ func (c *QQClient) handleGroupUploadNotice(wsmsg WebSocketMessage) (bool, error)
 		BusId:     wsmsg.File.BusId,
 	}
 	if file.FileId != "" {
-		file.FileUrl = c.getGroupFileUrl(file.GroupCode, file.FileId)
+		file.FileUrl = c.GetFileUrl(file.GroupCode, file.FileId)
 	}
 	c.GroupUploadNotifyEvent.dispatch(c, &GroupUploadNotifyEvent{
 		GroupCode: wsmsg.GroupID.ToInt64(),
@@ -1189,7 +1189,31 @@ func (c *QQClient) handleGroupUploadNotice(wsmsg WebSocketMessage) (bool, error)
 	return false, nil
 }
 
-func (c *QQClient) getGroupFileUrl(groupCode int64, fileId string) string {
+func (c *QQClient) GetMsg(msgId int32) (interface{}, error) {
+	var resp WebSocketMessage
+	data, err := c.SendApi("get_msg", map[string]any{"message_id": msgId})
+	if err != nil {
+		return nil, err
+	}
+	t, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(t, &resp); err != nil {
+		return nil, err
+	}
+	if resp.MessageType == "group" {
+		wMsg := c.createGroupMessage(resp)
+		gMsg := c.ChatMsgHandler(resp, wMsg).(*message.GroupMessage)
+		return gMsg, nil
+	} else {
+		wMsg := c.createPrivateMessage(resp)
+		pMsg := c.ChatMsgHandler(resp, wMsg).(*message.PrivateMessage)
+		return pMsg, nil
+	}
+}
+
+func (c *QQClient) GetFileUrl(groupCode int64, fileId string) string {
 	data, err := c.SendApi("get_group_file_url", map[string]any{
 		"group_id": groupCode,
 		"file_id":  fileId,
@@ -1251,13 +1275,21 @@ func (c *QQClient) handleMessage(wsmsg WebSocketMessage) {
 	switch wsmsg.MessageType {
 	case "group":
 		wsMsg := c.createGroupMessage(wsmsg)
-		c.ChatMsgHandler(wsmsg, wsMsg)
+		gMsg := c.ChatMsgHandler(wsmsg, wsMsg).(*message.GroupMessage)
+		c.waitDataAndDispatch(gMsg)
 	case "private":
 		wsMsg := c.createPrivateMessage(wsmsg)
 		if wsmsg.PostType == "message_sent" {
 			wsMsg.Target = int64(wsmsg.TargetID)
 		}
-		c.ChatMsgHandler(wsmsg, wsMsg)
+		pMsg := c.ChatMsgHandler(wsmsg, wsMsg).(*message.PrivateMessage)
+		selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
+		if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
+			c.SelfPrivateMessageEvent.dispatch(c, pMsg)
+		} else {
+			c.PrivateMessageEvent.dispatch(c, pMsg)
+		}
+		c.OutputReceivingMessage(pMsg)
 	default:
 		switch wsmsg.PostType {
 		case "meta_event":
@@ -1427,6 +1459,7 @@ func parseImageElement(contentMap map[string]interface{}, elements *[]message.IM
 			if isGroupMsg {
 				element := &message.GroupImageElement{
 					Size: int32(size),
+					Name: image["file"].(string),
 					Url:  image["url"].(string),
 				}
 				*elements = append(*elements, element)
@@ -1593,7 +1626,7 @@ func parseFileElement(contentMap map[string]interface{}, elements *[]message.IMe
 			*elements = append(*elements, &message.GroupFileElement{
 				Name: file["file"].(string),
 				Size: fileSize,
-				Path: file["file_id"].(string),
+				Id:   file["file_id"].(string),
 			})
 		} else {
 			*elements = append(*elements, &message.FriendFileElement{
@@ -1688,7 +1721,7 @@ func handleMixMsg(contentArray []interface{}, miraiMsg any, isGroupMsg bool) []m
 	return elements
 }
 
-func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, miraiMsg any) {
+func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, miraiMsg any) any {
 	isGroupMsg := wsmsg.MessageType != "private"
 	var elements []message.IMessageElement
 	defer func() {
@@ -1703,23 +1736,17 @@ func (c *QQClient) ChatMsgHandler(wsmsg WebSocketMessage, miraiMsg any) {
 		elements = handleMixMsg(wsmsg.MessageContent.([]interface{}), miraiMsg, isGroupMsg)
 	default:
 		logger.Warnf("未知 消息内容 类型: %v", wsmsg.MessageContent)
-		return
+		return nil
 	}
 
 	if isGroupMsg {
 		gMsg := miraiMsg.(*message.GroupMessage)
 		gMsg.Elements = elements
-		c.waitDataAndDispatch(gMsg)
+		return gMsg
 	} else {
 		pMsg := miraiMsg.(*message.PrivateMessage)
 		pMsg.Elements = elements
-		selfIDStr := strconv.FormatInt(int64(wsmsg.SelfID), 10)
-		if selfIDStr == strconv.FormatInt(int64(wsmsg.Sender.UserID), 10) {
-			c.SelfPrivateMessageEvent.dispatch(c, pMsg)
-		} else {
-			c.PrivateMessageEvent.dispatch(c, pMsg)
-		}
-		c.OutputReceivingMessage(pMsg)
+		return pMsg
 	}
 }
 

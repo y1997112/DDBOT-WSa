@@ -1,9 +1,10 @@
 package twitter
 
 import (
+	"bytes"
+	"compress/gzip"
 	"github.com/cnxysoft/DDBOT-WSa/internal/test"
 	"github.com/cnxysoft/DDBOT-WSa/lsp/concern"
-	"github.com/mmcdole/gofeed"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
@@ -11,48 +12,61 @@ import (
 )
 
 func TestTwitterConcern_GetUserInfo(t *testing.T) {
+	// 测试用的 HTML 模板
+	successHTML := `
+	<html>
+	<head>
+		<title>Test User (@testuser) / X</title>
+		<meta property="og:title" content="Test User (@testuser)">
+		<meta property="og:description" content="This is a test user">
+		<link rel="preload" as="image" href="https://test.com/banner.jpg">
+		<link rel="preload" as="image" href="https://test.com/avatar.jpg">
+	</head>
+	<body>
+		<div class="profile-joindate">
+			<div class="icon-container">Joined March 2023</div>
+		</div>
+		<ul class="profile-statlist">
+			<li class="posts"><span class="profile-stat-num">1,234</span></li>
+			<li class="following"><span class="profile-stat-num">567</span></li>
+			<li class="followers"><span class="profile-stat-num">8,901</span></li>
+			<li class="likes"><span class="profile-stat-num">2,345</span></li>
+		</ul>
+	</body>
+	</html>`
+
 	tests := []struct {
-		name        string
-		screenName  string
-		mockParser  func() *gofeed.Parser
-		expected    *UserInfo
-		expectError bool
+		name         string
+		screenName   string
+		mockResponse string
+		expected     *UserInfo
+		expectError  bool
+		errorMsg     string
 	}{
 		{
-			name:       "successful user info fetch",
-			screenName: "testuser",
-			mockParser: func() *gofeed.Parser {
-				return gofeed.NewParser()
-			},
+			name:         "successful user info fetch",
+			screenName:   "testuser",
+			mockResponse: successHTML,
 			expected: &UserInfo{
 				Id:              "testuser",
-				Name:            "test User",
-				ProfileImageUrl: "https://nitter.poast.org/pic/pbs.twimg.com%2Fprofile_images%2F1889333234816659456%2FYm8bUTqX_400x400.jpg",
+				Name:            "Test User",
+				ProfileImageUrl: "https://test.com/avatar.jpg",
 			},
 			expectError: false,
 		},
 		{
-			name:       "parser error",
-			screenName: "erroruser",
-			mockParser: func() *gofeed.Parser {
-				return gofeed.NewParser()
-			},
-			expected:    nil,
-			expectError: true,
+			name:         "cloudflare challenge",
+			screenName:   "cf_user",
+			mockResponse: `<html><title>Just a moment...</title></html>`,
+			expectError:  true,
+			errorMsg:     "cf_clearance has expired!",
 		},
 		{
-			name:       "real api response",
-			screenName: "peilien_vrc", // 使用真实存在的账号
-			mockParser: func() *gofeed.Parser {
-				// 使用真实网络请求
-				return gofeed.NewParser()
-			},
-			expected: &UserInfo{
-				Id:              "peilien_vrc",
-				Name:            "ペイリアン💙🫧",
-				ProfileImageUrl: "https://nitter.poast.org/pic/pbs.twimg.com%2Fprofile_images%2F1834361632975388672%2FNNRZqyz0_400x400.jpg",
-			},
-			expectError: false,
+			name:         "suspended user",
+			screenName:   "suspended_user",
+			mockResponse: `<html><head><title>Error | nitter</title></head><div class="error-panel">This account has been suspended</div></html>`,
+			expectError:  true,
+			errorMsg:     "This account has been suspended",
 		},
 	}
 
@@ -60,21 +74,52 @@ func TestTwitterConcern_GetUserInfo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test.InitBuntdb(t)
 			defer test.CloseBuntdb(t)
-			// 创建 twitterConcern 时注入 mock 解析器
+
+			// 创建测试服务器
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Encoding", "gzip") // 模拟压缩响应
+				w.WriteHeader(http.StatusOK)
+
+				// 创建 gzip 压缩的测试响应
+				var buf bytes.Buffer
+				gz := gzip.NewWriter(&buf)
+				gz.Write([]byte(tt.mockResponse))
+				gz.Close()
+				w.Write(buf.Bytes())
+			}))
+			defer ts.Close()
+
+			// 替换 buildProfileURL
+			originalBuildProfileURL := buildProfileURL
+			buildProfileURL = func(screenName string) string {
+				return ts.URL
+			}
+			defer func() { buildProfileURL = originalBuildProfileURL }()
+
 			tc := &twitterConcern{
 				twitterStateManager: &twitterStateManager{
 					StateManager: concern.NewStateManagerWithStringID(Site, nil),
 				},
 				extraKey: new(extraKey),
-				parser:   tt.mockParser(), // 添加 parser 字段到结构体
 			}
 
 			result, err := tc.FindUserInfo(tt.screenName, true)
 
 			if tt.expectError {
-				assert.Nil(t, err)
+				assert.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
 			} else {
-				assert.Equal(t, tt.expected, result)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected.Id, result.Id)
+				assert.Equal(t, tt.expected.Name, result.Name)
+				assert.Contains(t, result.ProfileImageUrl, "avatar.jpg")
+
+				// 验证数据库存储
+				dbInfo, err := tc.GetUserInfo(tt.screenName)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, dbInfo)
 			}
 		})
 	}

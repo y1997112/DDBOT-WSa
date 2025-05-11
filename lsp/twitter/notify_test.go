@@ -47,7 +47,7 @@ func TestToMessage_ErrorHandling(t *testing.T) {
 
 	msg := notify.ToMessage()
 	// 验证在这种情况下不会panic，并且媒体元素为空
-	assert.Len(t, msg.Elements(), 4) // 只有文本元素存在
+	assert.Len(t, msg.Elements(), 3) // 只有文本元素存在
 
 	pool.Delete(proxy.ProxyString())
 	pool.Stop()

@@ -981,6 +981,29 @@ func remoteDownloadFile(urlOrBase64 string, opts ...interface{}) string {
 	return ret
 }
 
+func getFileUrl(groupCode int64, fileId string) string {
+	bot := localutils.GetBot()
+	if bot == nil {
+		logger.Error("bot 实例未找到")
+		return ""
+	}
+	return (*bot.Bot).QQClient.GetFileUrl(groupCode, fileId)
+}
+
+func getMsg(msgId int32) interface{} {
+	bot := localutils.GetBot()
+	if bot == nil {
+		logger.Error("bot 实例未找到")
+		return nil
+	}
+	ret, err := (*bot.Bot).QQClient.GetMsg(msgId)
+	if err != nil {
+		logger.Errorf("获取消息失败: %v", err)
+		return nil
+	}
+	return ret
+}
+
 func loop(from, to int64) <-chan int64 {
 	ch := make(chan int64)
 	go func() {

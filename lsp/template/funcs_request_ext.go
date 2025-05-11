@@ -170,6 +170,11 @@ func downloadFile(inUrl string, loPath string, fileName string, oParams ...map[s
 		respHeader requests.RespHeader
 	)
 	params, opts := preProcess(oParams)
+	if opts == nil {
+		opts = []requests.Option{
+			requests.AddUAOption(),
+		}
+	}
 	// 检查URL
 	if inUrl == "" {
 		logger.Error("请提供URL进行下载")
@@ -191,13 +196,13 @@ func downloadFile(inUrl string, loPath string, fileName string, oParams ...map[s
 	// 检查文件路径是否存在
 	if _, err = os.Stat(localPath); os.IsNotExist(err) {
 		if err = os.MkdirAll(localPath, 0755); err != nil {
-			logger.Error("创建下载目录失败")
+			logger.Errorf("创建下载目录失败:%v", err)
 			return ""
 		}
 	}
 	err = requests.GetWithHeader(Url.String(), params, &resp, &respHeader, opts...)
 	if err != nil {
-		logger.Error("下载文件失败")
+		logger.Errorf("下载文件失败:%v", err)
 		return ""
 	}
 	if fileName == "" {
@@ -214,7 +219,7 @@ func downloadFile(inUrl string, loPath string, fileName string, oParams ...map[s
 	filePath := localPath + "/" + fileName
 	err = os.WriteFile(filePath, resp.Bytes(), 0644)
 	if err != nil {
-		logger.Error("保存文件失败")
+		logger.Errorf("保存文件失败:%v", err)
 		return ""
 	}
 	return filePath

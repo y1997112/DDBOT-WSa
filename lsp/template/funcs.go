@@ -77,6 +77,8 @@ func builtins() FuncMap {
 		"record":             record,
 		"file":               file,
 		"remoteDownloadFile": remoteDownloadFile,
+		"getMsg":             getMsg,
+		"getFileUrl":         getFileUrl,
 
 		// DDBOT common
 		"hour":          hour,
@@ -172,6 +174,7 @@ func builtins() FuncMap {
 		"split":      func(sep, orig string) []string { return strings.Split(orig, sep) },
 		"join":       join,
 		"trunc":      trunc,
+		"reTrunc":    reTrunc,
 		"replace":    strings.Replace,
 		"replaceAll": func(old, new, str string) string { return strings.ReplaceAll(str, old, new) },
 		"find":       strings.Index,
