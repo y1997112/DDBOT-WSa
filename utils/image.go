@@ -44,8 +44,7 @@ func ImageGet(url string, opt ...requests.Option) ([]byte, error) {
 	}
 	result := imageGetCache.WithCacheDo(url, func() blockCache.ActionResult {
 		opts := []requests.Option{
-			// 图片拉取超时时间为300秒，重试3次
-			requests.TimeoutOption(time.Second * 300),
+			requests.TimeoutOption(time.Second * 15),
 			requests.RetryOption(3),
 		}
 		opts = append(opts, opt...)
@@ -74,8 +73,7 @@ func ImageGetWithoutCache(url string, opt ...requests.Option) ([]byte, error) {
 	var result []byte
 	var err error
 	opts := []requests.Option{
-		// 图片拉取超时时间为300秒，重试3次
-		requests.TimeoutOption(time.Second * 300),
+		requests.TimeoutOption(time.Second * 15),
 		requests.RetryOption(3),
 	}
 	opts = append(opts, opt...)

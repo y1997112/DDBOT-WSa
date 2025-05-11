@@ -116,6 +116,7 @@ type QQClient struct {
 	OfflineFileEvent                  EventHandle[*OfflineFileEvent]
 	GroupDisbandEvent                 EventHandle[*GroupDisbandEvent]
 	DeleteFriendEvent                 EventHandle[*DeleteFriendEvent]
+	GroupUploadNotifyEvent            EventHandle[*GroupUploadNotifyEvent]
 
 	// message state
 	msgSvcCache            *utils.Cache[unit]
@@ -612,6 +613,7 @@ type WebSocketMessage struct {
 	Title          string       `json:"title"`
 	Times          int32        `json:"times"`
 	Echo           string       `json:"echo,omitempty"`
+	File           GroupFile    `json:"file"`
 }
 
 func (d *DynamicInt64) UnmarshalJSON(b []byte) error {
@@ -1155,6 +1157,62 @@ func (c *QQClient) handleMetaEvent(wsmsg WebSocketMessage) {
 	}
 }
 
+func (c *QQClient) handleGroupEssence(wsmsg WebSocketMessage) (bool, error) {
+	if wsmsg.SubType == "add" {
+		//c.GroupEssenceMsgAddEvent.dispatch(c, &GroupEssenceMsgAddEvent{
+		//	GroupCode: wsmsg.GroupID.ToInt64(),
+		//	Sender:    wsmsg.UserID.ToInt64(),
+		//	MessageId: int32(wsmsg.MessageID),
+		//})
+	} else if wsmsg.SubType == "delete" {
+		//c.GroupEssenceMsgDelEvent.dispatch()
+	}
+	return false, nil
+}
+
+func (c *QQClient) handleGroupUploadNotice(wsmsg WebSocketMessage) (bool, error) {
+	file := GroupFile{
+		GroupCode: wsmsg.GroupID.ToInt64(),
+		FileId:    wsmsg.File.AltFildId,
+		FileName:  wsmsg.File.AltFileName,
+		FileSize:  wsmsg.File.AltFileSize,
+		BusId:     wsmsg.File.BusId,
+	}
+	if file.FileId != "" {
+		file.FileUrl = c.getGroupFileUrl(file.GroupCode, file.FileId)
+	}
+	c.GroupUploadNotifyEvent.dispatch(c, &GroupUploadNotifyEvent{
+		GroupCode: wsmsg.GroupID.ToInt64(),
+		Sender:    wsmsg.UserID.ToInt64(),
+		File:      file,
+	})
+	return false, nil
+}
+
+func (c *QQClient) getGroupFileUrl(groupCode int64, fileId string) string {
+	data, err := c.SendApi("get_group_file_url", map[string]any{
+		"group_id": groupCode,
+		"file_id":  fileId,
+	})
+	if err != nil {
+		logger.Errorf("获取群文件链接失败: %v", err)
+		return ""
+	}
+	t, err := json.Marshal(data)
+	if err != nil {
+		logger.Errorf("解析群文件链接失败: %v", err)
+	}
+	type Resp struct {
+		Url string `json:"url"`
+	}
+	var resp Resp
+	err = json.Unmarshal(t, &resp)
+	if err != nil {
+		logger.Errorf("解析群文件链接失败: %v", err)
+	}
+	return resp.Url
+}
+
 func (c *QQClient) handleNoticeEvent(wsmsg WebSocketMessage) {
 	wsNoticeHeaders := map[string]func(wsmsg WebSocketMessage) (bool, error){
 		"group_admin":    c.handleGroupAdminNotice,
@@ -1165,6 +1223,8 @@ func (c *QQClient) handleNoticeEvent(wsmsg WebSocketMessage) {
 		"group_ban":      c.handleGroupBanNotice,
 		"notify":         c.handleNotifyNotice,
 		"group_recall":   c.handleGroupRecallNotice,
+		"essence":        c.handleGroupEssence,
+		"group_upload":   c.handleGroupUploadNotice,
 	}
 	needSync := false
 	var err error
@@ -1998,25 +2058,31 @@ func (c *QQClient) RefreshList() {
 	}
 	logger.Infof("已加载 %d 个群组", len(c.GroupList))
 	//logger.Info("start reload group members list")
-	err = c.ReloadGroupMembers()
+	memberCount, err := c.ReloadGroupMembers()
 	if err != nil {
 		logger.WithError(err).Error("unable to load group members list")
 	} else {
-		logger.Info("加载 群员信息 完成")
+		if memberCount > 0 {
+			logger.Infof("已加载 %d 个群成员", memberCount)
+		} else {
+			logger.Info("群成员加载失败")
+		}
 	}
 }
 
-func (c *QQClient) ReloadGroupMembers() error {
+func (c *QQClient) ReloadGroupMembers() (int, error) {
 	var err error
+	memberCount := 0
 	for _, group := range c.GroupList {
 		group.Members = nil
 		group.Members, err = c.GetGroupMembers(group)
+		memberCount += len(group.Members)
 		logger.Debugf("群[%d]加载成员[%d]个\n", group.Code, len(group.Members))
 		if err != nil {
-			return err
+			return memberCount, err
 		}
 	}
-	return nil
+	return memberCount, nil
 }
 
 func (c *QQClient) SendGroupMessage(groupCode int64, m *message.SendingMessage, newstr string) SendResp {

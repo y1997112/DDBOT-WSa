@@ -1,83 +1,75 @@
 package twitter
 
 import (
+	"github.com/cnxysoft/DDBOT-WSa/proxy_pool"
+	"github.com/cnxysoft/DDBOT-WSa/proxy_pool/local_proxy_pool"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-func TestNewNotify_getToken(t *testing.T) {
-	tests := []struct {
-		name     string
-		id       string
-		expected string
-	}{
-		{
-			name:     "small number",
-			id:       "123",
-			expected: "",
-		},
-		{
-			name:     "large number",
-			id:       "1234567890123456",
-			expected: "3vmjqguc7abepbln",
-		},
-		{
-			name:     "zero",
-			id:       "0",
-			expected: "",
-		},
-		{
-			name:     "very large number",
-			id:       "999999999999999999",
-			expected: "2f9lc2ug9mm5ugnaee",
-		},
-		{
-			name:     "number with trailing zeros",
-			id:       "1000000000000000",
-			expected: "353i5ab8p5fc5vay",
-		},
-		{
-			name:     "number producing trailing zeros in fraction",
-			id:       "1234567890000000",
-			expected: "3vmjqgtht4eider9",
-		},
-		{
-			name:     "normal twitter id",
-			id:       "1908006472073760775",
-			expected: "4mi6g4tjjqmsk2b1te",
+// 可以添加更多边界条件测试
+func TestToMessage_ErrorHandling(t *testing.T) {
+	// 测试无效MirrorHost的情况
+	tweet := Tweet{
+		ID:         "1234567890",
+		MirrorHost: "nitter.net",
+		Media: []*Media{
+			{Url: "/pic/media%2FGqbFhUuW0AAVRk4.jpg%3Fname%3Dsmall%26format%3Dwebp", Type: "image"},
+			{Url: "/video/CDBABB50751BD/https%3A%2F%2Fvideo.twimg.com%2Famplify_video%2F1920766235832172544%2Fpl%2FFNAXoec5cT40vEaG.m3u8", Type: "video(m3u8)"},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			n := &NewNotify{}
-			actual, err := n.getToken(tt.id)
-			if err != nil {
-				t.Errorf("getToken(%s) error = %v", tt.id, err)
-				return
-			}
-			assert.Equal(t, tt.expected, actual)
-		})
+	userInfo := &UserInfo{
+		Id:              "1234567890",
+		Name:            "testuser",
+		ProfileImageUrl: "https://example.com/profile.jpg",
 	}
+
+	notify := &NewNotify{
+		groupCode: 123456,
+		NewsInfo: &NewsInfo{
+			UserInfo: userInfo,
+			Tweet:    tweet,
+		},
+	}
+
+	pool := local_proxy_pool.NewLocalPool([]*local_proxy_pool.Proxy{
+		{
+			Type:  proxy_pool.PreferOversea,
+			Proxy: "127.0.0.1:7897",
+		},
+	})
+	proxy, err := pool.Get(proxy_pool.PreferOversea)
+	if err != nil {
+		t.Fatalf("Failed to get proxy: %v", err)
+	}
+	proxy_pool.Init(pool)
+
+	msg := notify.ToMessage()
+	// 验证在这种情况下不会panic，并且媒体元素为空
+	assert.Len(t, msg.Elements(), 4) // 只有文本元素存在
+
+	pool.Delete(proxy.ProxyString())
+	pool.Stop()
 }
 
-func Test_toBase36Char(t *testing.T) {
-	tests := []struct {
-		d        int64
-		expected string
+func TestDecodeURIComponent(t *testing.T) {
+	cases := []struct {
+		encoded string
+		decoded string
 	}{
-		{0, "0"},
-		{9, "9"},
-		{10, "a"},
-		{35, "z"},
-		{36, "10"}, // wraps around
-		{-1, "-1"}, // invalid input
+		// 单次编码
+		{"/pic/%E6%B5%8B%E8%AF%95", "/pic/测试"},
+		// 二次编码
+		{"%252Fpic%252Ftest", "/pic/test"},
+		// 混合编码
+		{"%2Fpic%252F%25E6%2588%2591", "/pic/我"},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
-			actual := floatToBase36(float64(tt.d), 15)
-			assert.Equal(t, tt.expected, actual)
-		})
+	for _, c := range cases {
+		result, err := processMediaURL(c.encoded)
+		if assert.NoError(t, err) {
+			assert.Equal(t, c.decoded, result)
+		}
 	}
 }

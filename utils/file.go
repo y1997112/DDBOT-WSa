@@ -19,8 +19,7 @@ func FileGet(url string, opt ...requests.Option) ([]byte, *requests.RespHeader, 
 	var respHeader requests.RespHeader
 	result := FileGetCache.WithCacheDo(url, func() blockCache.ActionResult {
 		opts := []requests.Option{
-			// 文件拉取超时时间为300秒，重试3次
-			requests.TimeoutOption(time.Second * 300),
+			requests.TimeoutOption(time.Second * 15),
 			requests.RetryOption(3),
 		}
 		opts = append(opts, opt...)
@@ -46,8 +45,7 @@ func FileGetWithoutCache(url string, opt ...requests.Option) ([]byte, *requests.
 	var result []byte
 	var err error
 	opts := []requests.Option{
-		// 文件拉取超时时间为300秒，重试3次
-		requests.TimeoutOption(time.Second * 300),
+		requests.TimeoutOption(time.Second * 15),
 		requests.RetryOption(3),
 	}
 	opts = append(opts, opt...)

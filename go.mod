@@ -1,6 +1,8 @@
 module github.com/cnxysoft/DDBOT-WSa
 
-go 1.20
+go 1.22
+
+toolchain go1.23.4
 
 replace github.com/Sora233/MiraiGo-Template => ./bot
 
@@ -25,6 +27,7 @@ require (
 	github.com/huandu/xstrings v1.4.0
 	github.com/imdario/mergo v0.3.14
 	github.com/json-iterator/go v1.1.12
+	github.com/klauspost/compress v1.18.0
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/modern-go/gls v0.0.0-20220109145502-612d0167dce5
@@ -41,20 +44,19 @@ require (
 	github.com/tidwall/buntdb v1.2.10
 	github.com/tidwall/gjson v1.14.4
 	go.uber.org/atomic v1.10.0
-	golang.org/x/net v0.11.0
 	golang.org/x/sync v0.3.0
 	google.golang.org/protobuf v1.31.0
 )
 
 require (
 	github.com/mmcdole/goxpp v1.1.1-0.20240225020742-a0c311522b23 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
+	golang.org/x/net v0.11.0 // indirect
 )
 
 require (
 	github.com/RomiChan/protobuf v0.1.1-0.20230204044148-2ed269a2e54d // indirect
 	github.com/RomiChan/syncx v0.0.0-20221202055724-5f842c53020e // indirect
-	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/andybalholm/brotli v1.0.5
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/bytedance/sonic v1.9.2 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect

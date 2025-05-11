@@ -991,3 +991,27 @@ func loop(from, to int64) <-chan int64 {
 	}()
 	return ch
 }
+
+func lsDir(dir string, recursive bool) []string {
+	var result []string
+
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		logger.Errorf("lsDir error: %v", err)
+		return nil
+	}
+
+	for _, item := range files {
+		result = append(result, item.Name())
+
+		// 若开启递归且当前项为目录，则递归遍历子目录
+		if recursive && item.IsDir() {
+			subItems := lsDir(filepath.Join(dir, item.Name()), recursive)
+			for _, subItem := range subItems {
+				result = append(result, filepath.Join(item.Name(), subItem)) // 添加相对路径
+			}
+		}
+	}
+
+	return result
+}

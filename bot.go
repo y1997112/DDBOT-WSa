@@ -156,6 +156,14 @@ bilibili:
   disableSub: false        # 禁止ddbot去b站关注帐号，这意味着只能订阅帐号已关注的用户，或者在b站手动关注
   onlyOnlineNotify: false  # 是否不推送Bot离线期间的动态和直播，默认为false表示需要推送，设置为true表示不推送
 
+# 需自行先访问https://lightbrd.com/进行cookies的获取
+# 填入你访问网站时提交的user_agent，可在浏览器中查看
+# 填入你访问网站后得到的cf_clearance，可在浏览器中查看
+twitter:
+  useragent:
+  cfclearance:
+
+
 concern:
   emitInterval: 5s
 

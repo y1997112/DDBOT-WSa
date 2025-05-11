@@ -171,6 +171,9 @@ func TwitterFreshKey(keys ...interface{}) string { return NamedKey("TwitterFresh
 func TwitterNewsInfoKey(keys ...interface{}) string {
 	return NamedKey("TwitterNewsInfo", keys)
 }
+func TwitterLastFreshKey(keys ...interface{}) string {
+	return NamedKey("TwitterLastFresh", keys)
+}
 
 func PermissionKey(keys ...interface{}) string {
 	return NamedKey("Permission", keys)

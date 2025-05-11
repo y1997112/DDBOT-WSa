@@ -103,6 +103,7 @@ func builtins() FuncMap {
 		"uriEncode":     uriEncode,
 		"uriDecode":     uriDecode,
 		"loop":          loop,
+		"lsDir":         lsDir,
 
 		// cast
 		"float64": toFloat64,
@@ -220,6 +221,7 @@ func builtins() FuncMap {
 		"httpGet":      httpGet,
 		"httpPostJson": httpPostJson,
 		"httpPostForm": httpPostForm,
+		"downloadFile": downloadFile,
 
 		// gjson
 		"toGJson": toGJson,

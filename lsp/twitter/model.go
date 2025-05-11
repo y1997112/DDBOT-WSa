@@ -13,7 +13,7 @@ import (
 
 type NewsInfo struct {
 	*UserInfo
-	Tweet         *TweetItem
+	Tweet         Tweet
 	LatestNewsTs  time.Time
 	LatestTweetId string
 }
@@ -82,6 +82,7 @@ type TweetItem struct {
 	Title       string
 	Description string
 	Link        string
+	Media       []string
 	Published   time.Time
 	Author      *UserInfo
 }
