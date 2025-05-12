@@ -1038,3 +1038,14 @@ func lsDir(dir string, recursive bool) []string {
 
 	return result
 }
+
+func getEleType(v interface{}) string {
+	switch v.(type) {
+	case *message.GroupImageElement, *message.FriendImageElement:
+		return "image"
+	case *message.GroupFileElement, *message.FriendFileElement:
+		return "file"
+	default:
+		return "unknown"
+	}
+}

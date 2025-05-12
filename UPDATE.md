@@ -14,10 +14,14 @@
     - 模板变量：group_code、member_code、member_name、file_name、file_size、file_id、file_url、file_busId
   - 新增模板函数
     - 下载文件到本地
-    - downloadFile(url string, path string, filename string) string
-      - 支持设置Headers、Cookies、UA等参数（详见TEMPLATE.md中http特殊参数一节）
-    - lsDir(path string, recursive bool) []string
-      - 遍历输出给定目录下的文件列表
+      - downloadFile(url string, path string, filename string) string
+        - 支持设置Headers、Cookies、UA等参数（详见TEMPLATE.md中http特殊参数一节）
+    - 遍历输出给定目录下的文件列表
+      - lsDir(path string, recursive bool) []string
+        - 支持遍历子目录
+    - 获取Element类型
+      - getEleType(ele interface{}) string
+        - 获取ele类型，返回：image、file、unknown
 
 - 2025-03-31 0.3.8(Wsa)
   - 修复群文件上传事件导致的消息处理错误

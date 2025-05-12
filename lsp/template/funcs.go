@@ -106,6 +106,7 @@ func builtins() FuncMap {
 		"uriDecode":     uriDecode,
 		"loop":          loop,
 		"lsDir":         lsDir,
+		"getEleType":    getEleType,
 
 		// cast
 		"float64": toFloat64,
