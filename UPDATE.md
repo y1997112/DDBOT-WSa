@@ -9,6 +9,9 @@
   - 修改更新检查服务器
   - 还原部分原始函数
   - 修复B站关注和直播推送失效
+  - 支持自定义私聊无效指令触发模板
+    - 名称：command.private.unknown_cmd_tips.tmpl
+    - 模板变量：cmd、args、full_args、help_cmd
   - 新增群文件上传事件并支持自定义模板
     - 名称：trigger.group.upload.tmpl
     - 模板变量：group_code、member_code、member_name、file_name、file_size、file_id、file_url、file_busId

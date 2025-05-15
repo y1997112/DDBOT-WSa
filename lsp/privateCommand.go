@@ -130,7 +130,22 @@ func (c *LspPrivateCommand) Execute() {
 				)
 			}()
 		} else {
-			c.textReplyF("阁下似乎输入了一个无法识别的命令，请使用<%v>命令查看帮助。", c.l.CommandShowName(HelpCommand))
+			func() {
+				log := c.DefaultLoggerWithCommand("Unknown CMD Tips").WithField("CustomCommand", true)
+				log.Info("run Unknown CMD Tips command")
+				defer func() { log.Info("Unknown CMD Tips command end") }()
+				c.sendChain(
+					c.templateMsg(
+						"command.private.unknown_cmd_tips.tmpl",
+						map[string]interface{}{
+							"cmd":       c.CommandName(),
+							"args":      c.GetArgs(),
+							"full_args": strings.Join(c.GetArgs(), " "),
+							"help_cmd":  c.l.CommandShowName(HelpCommand),
+						},
+					),
+				)
+			}()
 			log.Debug("no command matched")
 		}
 	}
