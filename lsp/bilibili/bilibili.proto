@@ -105,8 +105,8 @@ message FeedListResponse {
       int64 online = 7;
       string link = 8;
       int64 uid = 9;
-      int64 parent_area_id = 10;
-      int64 area_id = 11;
+      int32 parent_area_id = 10;
+      int32 area_id = 11;
     }
     repeated ListInfo list = 4;
   }
@@ -519,6 +519,7 @@ message CardWithOrig {
     message Info {
       int64 uid = 1;
       string uname = 2;
+      string face = 3;
     }
     Info info = 1;
   }
@@ -830,4 +831,37 @@ message GoodsInfo {
   int32 discount = 16;
   int32 discount_price = 17;
   string service_duration = 18;
+}
+
+message Item {
+  string id = 1;
+  string parent_id = 2;
+  string parent_name = 3;
+  string old_area_id = 4;
+  string name = 5;
+  string pinyin = 6;
+  string act_id = 7;
+  int32 hot_status = 8;
+  string pk_status = 9;
+  string lock_status = 10;
+  string pic = 11;
+  int32 area_type = 12;
+}
+
+message Category {
+  int32 id = 1;
+  string name = 2;
+  repeated Item list = 3;
+}
+
+message AreaData {
+  repeated Category data = 1;
+  int32 expid = 2;
+}
+
+message XLiveGetWebAreaListResponse {
+  int32 code = 1;
+  string message = 2;
+  int32 ttl = 3;
+  AreaData data = 4;
 }

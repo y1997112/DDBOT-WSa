@@ -47,6 +47,7 @@ var BasePath = map[string]string{
 	PathDynamicSrvDynamicHistory:        BaseVCHost,
 	PathGetPlayTogetherUserAnchorInfoV2: BaseLiveHost,
 	PathRoomInfo:                        BaseLiveHost,
+	PathWebAreaList:                     BaseLiveHost,
 }
 
 type VerifyInfo struct {

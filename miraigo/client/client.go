@@ -2457,6 +2457,7 @@ func (c *QQClient) GetFriendList() ([]*FriendInfo, error) {
 			Nickname: friend.NickName,
 			Remark:   friend.Remark,
 			FaceId:   0,
+			client:   c,
 		}
 	}
 	return friends, nil
@@ -2487,11 +2488,21 @@ func (c *QQClient) GetGroupInfo(groupCode int64) (*GroupInfo, error) {
 }
 
 func (c *QQClient) SendGroupPoke(groupCode, target int64) {
-	_, _ = c.sendAndWait(c.buildGroupPokePacket(groupCode, target))
+	_, err := c.SendApi("group_poke", map[string]any{"group_id": groupCode, "user_id": target})
+	if err != nil {
+		c.error("SendGroupPoke error: %v", err)
+		return
+	}
+	// _, _ = c.sendAndWait(c.buildGroupPokePacket(groupCode, target))
 }
 
 func (c *QQClient) SendFriendPoke(target int64) {
-	_, _ = c.sendAndWait(c.buildFriendPokePacket(target))
+	_, err := c.SendApi("friend_poke", map[string]any{"user_id": target})
+	if err != nil {
+		c.error("SendFriendPoke error: %v", err)
+		return
+	}
+	// _, _ = c.sendAndWait(c.buildFriendPokePacket(target))
 }
 
 func (c *QQClient) ReloadGroupList() error {
@@ -2533,6 +2544,7 @@ func (c *QQClient) GetGroupList() ([]*GroupInfo, error) {
 			GroupLevel:      uint32(group.GroupLevel),
 			MemberCount:     uint16(group.MemberCount),
 			MaxMemberCount:  uint16(group.MaxMemberCount),
+			client:          c,
 		}
 	}
 	return groups, nil

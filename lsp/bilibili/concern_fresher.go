@@ -131,6 +131,12 @@ func (c *Concern) fresh() concern.FreshFunc {
 							resp.GetCover(),
 							resp.GetLiveStatus(),
 						)
+						selfLiveInfo.SetAreaData(
+							resp.Data.GetAreaId(),
+							resp.Data.GetAreaName(),
+							resp.Data.GetParentAreaId(),
+							resp.Data.GetParentAreaName(),
+						)
 						//accResp, err := XSpaceAccInfo(selfUid)
 						//if err != nil {
 						//	logger.Errorf("freshLive self-fresh %v error %v", selfUid, err)
@@ -214,6 +220,12 @@ func (c *Concern) fresh() concern.FreshFunc {
 							}
 							newInfo = NewLiveInfo(&oldInfo.UserInfo, resp.GetTitle(),
 								resp.GetCover(), LiveStatus_NoLiving)
+							newInfo.SetAreaData(
+								resp.Data.GetAreaId(),
+								resp.Data.GetAreaName(),
+								resp.Data.GetParentAreaId(),
+								resp.Data.GetParentAreaName(),
+							)
 							newInfo.Name = resp2.GetName()
 							newInfo.liveStatusChanged = true
 							sendLiveInfo(newInfo)
@@ -385,6 +397,13 @@ func (c *Concern) freshLive() ([]*LiveInfo, error) {
 				l.GetPic(),
 				LiveStatus_Living,
 			)
+			ParentArea := c.AreaData.GetSubArea(l.GetParentAreaId())
+			Aria := ParentArea.GetSubCategory(l.GetAreaId())
+			info.SetAreaData(
+				l.GetAreaId(),
+				Aria.GetName(),
+				l.GetParentAreaId(),
+				ParentArea.GetName())
 			if info.Cover == "" {
 				info.Cover = l.GetCover()
 			}

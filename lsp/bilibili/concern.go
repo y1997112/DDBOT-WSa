@@ -34,6 +34,7 @@ type Concern struct {
 	stop                   chan interface{}
 	wg                     sync.WaitGroup
 	cacheStartTs           int64
+	AreaData               *AreaData
 }
 
 func (c *Concern) Site() string {
@@ -74,6 +75,7 @@ func NewConcern(notify chan<- concern.Notify) *Concern {
 			return m
 		}),
 	}
+	c.AreaData = RefreshAreaList()
 	c.StateManager = NewStateManager(c)
 	return c
 }

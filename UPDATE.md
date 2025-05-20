@@ -1,5 +1,5 @@
 ## DDBOT最近更新日志
-- 2025-05-11 0.3.9(Wsa)
+- 2025-05-20 0.3.9(Wsa)
   - 支持Twitter订阅
   - 支持Twitter多个镜像源
   - 支持twitter镜像的m3u8视频推送
@@ -9,6 +9,13 @@
   - 修改更新检查服务器
   - 还原部分原始函数
   - 修复B站关注和直播推送失效
+  - 修复群组、私聊戳一戳报错
+  - 删除模板函数link，请使用join代替
+  - 为bilibili直播推送模板增加直播分区变量
+    - 模板变量： area_name、parent_area_name
+  - 支持自定义bilibili动态推送模板
+    - 名称：notify.group.bilibili.news.tmpl
+    - 模板变量 .dynamic（详细结构请看文档）
   - 支持自定义私聊无效指令触发模板
     - 名称：command.private.unknown_cmd_tips.tmpl
     - 模板变量：cmd、args、full_args、help_cmd
@@ -25,6 +32,9 @@
     - 获取Element类型
       - getEleType(ele interface{}) string
         - 获取ele类型，返回：image、file、unknown
+    - 新增一种Json转换函数
+      - toJson(v interface{}) []byte
+        - 支持多种类型到json uint8的转换
 
 - 2025-03-31 0.3.8(Wsa)
   - 修复群文件上传事件导致的消息处理错误

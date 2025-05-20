@@ -31,7 +31,11 @@ func (p *PokeElement) PackToElement(target Target) message.IMessageElement {
 		}
 		fi.Poke()
 	case TargetPrivate:
-		// not supported
+		fi := localutils.GetBot().FindFriend(target.TargetCode())
+		if fi == nil {
+			return nil
+		}
+		fi.Poke()
 	}
 	return nil
 }

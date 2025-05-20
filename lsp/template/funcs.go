@@ -181,7 +181,6 @@ func builtins() FuncMap {
 		"find":       strings.Index,
 		"findLast":   strings.LastIndex,
 		"count":      strings.Count,
-		"link":       func(a, b string) string { return a + b },
 
 		"snakecase": xstrings.ToSnakeCase,
 		"camelcase": xstrings.ToCamelCase,
@@ -227,8 +226,9 @@ func builtins() FuncMap {
 		"httpPostForm": httpPostForm,
 		"downloadFile": downloadFile,
 
-		// gjson
+		// json
 		"toGJson": toGJson,
+		"toJson":  toJson,
 
 		// Comparisons
 		"eq": eq, // ==
