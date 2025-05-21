@@ -277,7 +277,10 @@ func (t *twitterConcern) notifyGenerator() concern.NotifyGeneratorFunc {
 // 新增辅助函数获取刷新间隔
 func getRefreshInterval() time.Duration {
 	if config.GlobalConfig != nil {
-		return config.GlobalConfig.GetDuration("twitter.interval")
+		interval := config.GlobalConfig.GetDuration("twitter.interval")
+		if interval > 0 {
+			return interval
+		}
 	}
 	return time.Second * 30
 }
@@ -319,22 +322,24 @@ func (t *twitterConcern) processUsers(ctx context.Context, eventChan chan<- conc
 
 func (t *twitterConcern) fresh() concern.FreshFunc {
 	return func(ctx context.Context, eventChan chan<- concern.Event) {
-		// 从配置获取基础间隔
 		interval := getRefreshInterval()
-		ti := time.NewTimer(interval)
+		ti := time.NewTimer(time.Second * 3)
+		defer ti.Stop() // 确保定时器资源释放
+
 		for {
 			select {
 			case userId := <-t.newUsersChan:
-				// 新用户快速处理（带随机延迟）
-				jitter := time.Duration(rand.Int63n(10)) * time.Second
-				time.AfterFunc(jitter, func() {
-					if ctx.Err() != nil {
+				go func(uid interface{}) { // 使用goroutine替代AfterFunc
+					select {
+					case <-time.After(time.Duration(rand.Int63n(10)) * time.Second):
+						t.processUser(ctx, eventChan, uid)
+					case <-ctx.Done():
 						return
 					}
-					t.processUser(ctx, eventChan, userId)
-				})
+				}(userId)
 			case <-ti.C:
 				t.processUsers(ctx, eventChan)
+				ti.Reset(interval) // 重置定时器
 			case <-ctx.Done():
 				return
 			}

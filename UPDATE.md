@@ -22,6 +22,12 @@
   - 新增群文件上传事件并支持自定义模板
     - 名称：trigger.group.upload.tmpl
     - 模板变量：group_code、member_code、member_name、file_name、file_size、file_id、file_url、file_busId
+  - 新增BOT离线通知模板
+    - 名称：notify.bot.offline.tmpl
+    - 模板变量：无
+    - 本模板没有自带，需要自行创建，示例可去文档中寻找，且需注意以下几点：
+      - 1. 本模板在heartbeat事件中触发，需要在BOT实现启用心跳上报。
+      - 2. 本模板会在每次上报离线时触发，所以需要为模板设置冷却，避免重复通知。
   - 新增模板函数
     - 下载文件到本地
       - downloadFile(url string, path string, filename string) string
