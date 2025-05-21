@@ -117,6 +117,7 @@ type QQClient struct {
 	GroupDisbandEvent                 EventHandle[*GroupDisbandEvent]
 	DeleteFriendEvent                 EventHandle[*DeleteFriendEvent]
 	GroupUploadNotifyEvent            EventHandle[*GroupUploadNotifyEvent]
+	BotOfflineEvent                   EventHandle[*BotOfflineEvent]
 
 	// message state
 	msgSvcCache            *utils.Cache[unit]
@@ -1152,6 +1153,9 @@ func (c *QQClient) handleMetaEvent(wsmsg WebSocketMessage) {
 	case "heartbeat":
 		c.Online.Store(wsmsg.Status.Online)
 		c.alive = wsmsg.Status.Good
+		if !wsmsg.Status.Online {
+			c.BotOfflineEvent.dispatch(c, &BotOfflineEvent{})
+		}
 	default:
 		logger.Warnf("未知 元事件 类型: %s", wsmsg.MetaEventType)
 	}

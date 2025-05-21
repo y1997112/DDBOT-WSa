@@ -52,6 +52,9 @@ type (
 		Sender   int64
 		Receiver int64
 	}
+
+	BotOfflineEvent struct {
+	}
 )
 
 // grayTipProcessor 提取出来专门用于处理群内 notify tips
