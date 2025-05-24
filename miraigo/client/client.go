@@ -365,6 +365,7 @@ type T struct {
 	Status  string `json:"status"`
 	RetCode int    `json:"retcode"`
 	Message string `json:"message"`
+	Msg     string `json:"msg"`
 	Wording string `json:"wording"`
 	Data    any    `json:"data"`
 }
@@ -1382,11 +1383,15 @@ func parseTextElement(contentMap map[string]interface{}, elements *[]message.IMe
 
 func parseAtElement(contentMap map[string]interface{}, elements *[]message.IMessageElement, miraiMsg any, isGroupMsg bool) {
 	if data, ok := contentMap["data"].(map[string]interface{}); ok {
-		var qq int64
-		var senderName string
-		if qqData, ok := data["qq"].(string); ok {
+		var (
+			err        error
+			qq         int64
+			senderName string
+		)
+		switch data["qq"].(type) {
+		case string:
+			qqData := data["qq"].(string)
 			if qqData != "all" {
-				var err error
 				qq, err = strconv.ParseInt(qqData, 10, 64)
 				if err != nil {
 					logger.Errorf("Failed to parse qq: %v", err)
@@ -1395,8 +1400,10 @@ func parseAtElement(contentMap map[string]interface{}, elements *[]message.IMess
 			} else {
 				qq = 0
 			}
-		} else if qqData, ok := data["qq"].(int64); ok {
-			qq = qqData
+		case int64:
+			qq = data["qq"].(int64)
+		case float64:
+			qq = int64(data["qq"].(float64))
 		}
 		if isGroupMsg {
 			senderName = miraiMsg.(*message.GroupMessage).Sender.DisplayName()
@@ -1870,7 +1877,13 @@ func (c *QQClient) SendApi(api string, params map[string]any, expTime ...float64
 		if res.Status == "ok" {
 			return res.Data, nil
 		} else {
-			return nil, errors.New(res.Message)
+			errMsg := res.Wording
+			if res.Message != "" {
+				errMsg += ": " + res.Message
+			} else if res.Msg != "" {
+				errMsg += ": " + res.Msg
+			}
+			return nil, errors.New(errMsg)
 		}
 	case <-time.After(time.Second * time.Duration(timeout)):
 		return nil, errors.New(api + " timeout")

@@ -10,6 +10,7 @@
   - 还原部分原始函数
   - 修复B站关注和直播推送失效
   - 修复群组、私聊戳一戳报错
+  - 兼容ws-plugin的at操作和错误提示
   - 删除模板函数link，请使用join代替
   - 为bilibili直播推送模板增加直播分区变量
     - 模板变量： area_name、parent_area_name

@@ -111,7 +111,10 @@ func (n *NewNotify) ToMessage() *mmsg.MSG {
 							requests.TimeoutOption(time.Second*10),
 							requests.RetryOption(3),
 							requests.ProxyOption(proxy_pool.PreferOversea)))
+					message.Text(n.Tweet.Url + "\n")
 				case "video", "gif":
+					message.Text(n.Tweet.Url + "\n")
+					message.Cut()
 					message.Append(
 						mmsg.NewVideoByUrl(m.Url,
 							requests.TimeoutOption(time.Second*10),
@@ -154,6 +157,8 @@ func (n *NewNotify) ToMessage() *mmsg.MSG {
 							Errorf("concern notify recoverd: convertWithProxy failed: %v", err)
 						continue
 					}
+					message.Text(n.Tweet.Url + "\n")
+					message.Cut()
 					message.Append(mmsg.NewVideo(filePath))
 					go func(path string) {
 						time.Sleep(time.Second * 180)
@@ -163,13 +168,12 @@ func (n *NewNotify) ToMessage() *mmsg.MSG {
 			}
 		}
 	}
-	// msg加入url
-	message.Text(n.Tweet.Url + "\n")
 	return message
 }
 
 func convertWithProxy(m3u8URL, outputPath, proxyURL string) error {
 	cmd := exec.Command("ffmpeg",
+		"-v", "error",
 		"-i", m3u8URL,
 		"-c", "copy",
 		"-f", "mp4",
