@@ -47,8 +47,7 @@ func (o *option) getGout() *gout.Client {
 	if o.Timeout != 0 {
 		goutOpts = append(goutOpts, gout.WithTimeout(o.Timeout))
 	} else {
-		// 修改上传文件超时时间
-		goutOpts = append(goutOpts, gout.WithTimeout(time.Second*300))
+		goutOpts = append(goutOpts, gout.WithTimeout(time.Second*15))
 	}
 	if o.InsecureSkipVerify {
 		goutOpts = append(goutOpts, gout.WithInsecureSkipVerify())

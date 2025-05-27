@@ -12,6 +12,10 @@
   - 修复群组、私聊戳一戳报错
   - 兼容ws-plugin的at操作和错误提示
   - 删除模板函数link，请使用join代替
+  - HTTP请求增加DDBOT_REQ_TIMEOUT、DDBOT_REQ_RETRY设置（具体请参考文档）
+    - DDBOT_REQ_TIMEOUT默认为15s，可设置如10s,1m等
+      - 注意：为避免资源泄漏、性能下降等问题，不支持将超时时间设置为0。
+    - DDBOT_REQ_RETRY默认为0，可设置如3,5等
   - 为bilibili直播推送模板增加直播分区变量
     - 模板变量： area_name、parent_area_name
   - 支持自定义bilibili动态推送模板

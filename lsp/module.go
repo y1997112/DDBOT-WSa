@@ -700,8 +700,11 @@ func (l *Lsp) Serve(bot *bot.Bot) {
 	})
 
 	bot.BotOfflineEvent.Subscribe(func(qqClient *client.QQClient, event *client.BotOfflineEvent) {
-		data := map[string]interface{}{}
-		_, _ = template.LoadAndExec("notify.bot.offline.tmpl", data)
+		templateName := "notify.bot.offline.tmpl"
+		data := map[string]interface{}{
+			"template_name": templateName,
+		}
+		_, _ = template.LoadAndExec(templateName, data)
 	})
 
 }

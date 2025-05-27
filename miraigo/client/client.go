@@ -1147,11 +1147,10 @@ func (c *QQClient) handleRequestEvent(wsmsg WebSocketMessage) {
 
 func (c *QQClient) handleMetaEvent(wsmsg WebSocketMessage) {
 	switch wsmsg.MetaEventType {
-	case "lifecycle":
-		c.Uin = int64(wsmsg.SelfID)
-		c.Online.Store(true)
-		c.alive = true
-	case "heartbeat":
+	case "lifecycle", "heartbeat":
+		if wsmsg.MetaEventType == "lifecycle" {
+			c.Uin = int64(wsmsg.SelfID)
+		}
 		c.Online.Store(wsmsg.Status.Online)
 		c.alive = wsmsg.Status.Good
 		if !wsmsg.Status.Online {

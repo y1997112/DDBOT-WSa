@@ -460,93 +460,93 @@ type DynamicInfo struct {
 		Face string
 	}
 	OriginUser struct {
-		Uid  int64
-		Name string
-		Face string
+		Uid  int64  `json:",omitempty"`
+		Name string `json:",omitempty"`
+		Face string `json:",omitempty"`
 	}
 	Image struct {
-		ImageUrls   []string
-		Description string
+		ImageUrls   []string `json:",omitempty"`
+		Description string   `json:",omitempty"`
 	}
 	Text struct {
-		Content string
+		Content string `json:",omitempty"`
 	}
 	Video struct {
-		Title    string
-		Desc     string
-		CoverUrl string
-		Action   string
+		Title    string `json:",omitempty"`
+		Desc     string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
+		Action   string `json:",omitempty"`
 	}
 	Post struct {
-		Title     string
-		Summary   string
-		ImageUrls []string
+		Title     string   `json:",omitempty"`
+		Summary   string   `json:",omitempty"`
+		ImageUrls []string `json:",omitempty"`
 	}
 	Music struct {
-		Title    string
-		Intro    string
-		CoverUrl string
-		Author   string
+		Title    string `json:",omitempty"`
+		Intro    string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
+		Author   string `json:",omitempty"`
 	}
 	Sketch struct {
-		Content  string
-		Title    string
-		DescText string
-		CoverUrl string
+		Content  string `json:",omitempty"`
+		Title    string `json:",omitempty"`
+		DescText string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
 	}
 	Live struct {
-		Title    string
-		CoverUrl string
+		Title    string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
 	}
 	MyList struct {
-		Title    string
-		CoverUrl string
+		Title    string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
 	}
 	Miss struct {
-		Tips string
+		Tips string `json:",omitempty"`
 	}
 	Course struct {
-		Name     string
-		Badge    string
-		Title    string
-		CoverUrl string
+		Name     string `json:",omitempty"`
+		Badge    string `json:",omitempty"`
+		Title    string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
 	}
 	Default struct {
-		TypeName string
-		Title    string
-		Desc     string
-		CoverUrl string
+		TypeName string `json:",omitempty"`
+		Title    string `json:",omitempty"`
+		Desc     string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
 	}
-	Addons []Addon
+	Addons []Addon `json:",omitempty"`
 }
 
 type Addon struct {
 	Type  AddOnCardShowType
 	Goods struct {
-		AdMark   string
-		Name     string
-		ImageUrl string
+		AdMark   string `json:",omitempty"`
+		Name     string `json:",omitempty"`
+		ImageUrl string `json:",omitempty"`
 	}
 	Reserve struct {
-		Title   string
-		Desc    string
-		Lottery string
+		Title   string `json:",omitempty"`
+		Desc    string `json:",omitempty"`
+		Lottery string `json:",omitempty"`
 	}
 	Related struct {
-		Type     string
-		HeadText string
-		Title    string
-		Desc     string
+		Type     string `json:",omitempty"`
+		HeadText string `json:",omitempty"`
+		Title    string `json:",omitempty"`
+		Desc     string `json:",omitempty"`
 	}
 	Vote struct {
-		Index []int32
-		Desc  []string
+		Index []int32  `json:",omitempty"`
+		Desc  []string `json:",omitempty"`
 	}
 	Video struct {
-		Title    string
-		CoverUrl string
-		Desc     string
-		PlayUrl  string
+		Title    string `json:",omitempty"`
+		CoverUrl string `json:",omitempty"`
+		Desc     string `json:",omitempty"`
+		PlayUrl  string `json:",omitempty"`
 	}
 }
 

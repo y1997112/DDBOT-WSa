@@ -11,6 +11,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 	DDBOT_REQ_COOKIE     = "DDBOT_REQ_COOKIE"
 	DDBOT_REQ_PROXY      = "DDBOT_REQ_PROXY"
 	DDBOT_REQ_USER_AGENT = "DDBOT_REQ_USER_AGENT"
+	DDBOT_REQ_TIMEOUT    = "DDBOT_REQ_TIMEOUT"
+	DDBOT_REQ_RETRY      = "DDBOT_REQ_RETRY"
 )
 
 func preProcess(oParams []map[string]interface{}) (map[string]interface{}, []requests.Option) {
@@ -122,6 +125,35 @@ func preProcess(oParams []map[string]interface{}) (map[string]interface{}, []req
 					return nil
 				}
 				return []requests.Option{requests.AddUAOption(ua)}
+			},
+		},
+		{
+			DDBOT_REQ_TIMEOUT,
+			func() []requests.Option {
+				itime := params[DDBOT_REQ_TIMEOUT]
+				timeStr, ok := itime.(string)
+				if !ok {
+					logger.WithField("DDBOT_REQ_TIMEOUT", itime).Errorf("invalid timeout format")
+					return nil
+				}
+				timeout, err := time.ParseDuration(timeStr)
+				if err != nil {
+					logger.WithField("DDBOT_REQ_TIMEOUT", timeStr).Errorf("invalid timeout format")
+					return nil
+				}
+				return []requests.Option{requests.TimeoutOption(timeout)}
+			},
+		},
+		{
+			DDBOT_REQ_RETRY,
+			func() []requests.Option {
+				iretry := params[DDBOT_REQ_RETRY]
+				retry, ok := iretry.(int64)
+				if !ok {
+					logger.WithField("DDBOT_REQ_RETRY", iretry).Errorf("invalid retry format")
+					return nil
+				}
+				return []requests.Option{requests.RetryOption(int(retry))}
 			},
 		},
 	}
