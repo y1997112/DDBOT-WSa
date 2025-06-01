@@ -1,5 +1,6 @@
 ## DDBOT最近更新日志
 - 2025-05-20 0.3.9(Wsa)
+  - 剔除CQ码，改为array方式发送消息
   - 支持Twitter订阅
   - 支持Twitter多个镜像源
   - 支持twitter镜像的m3u8视频推送

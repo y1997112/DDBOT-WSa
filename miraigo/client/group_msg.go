@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"math"
 	"math/rand"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -40,8 +39,8 @@ type WebSocketActionMessage struct {
 }
 
 type WebSocketParams struct {
-	GroupID string `json:"group_id"`
-	Message string `json:"message"`
+	GroupID string           `json:"group_id"`
+	Message []MessageContent `json:"message"`
 }
 
 func (c *QQClient) SendLimit() (*message.GroupMessage, error) {
@@ -64,6 +63,7 @@ func (c *QQClient) SendLimit() (*message.GroupMessage, error) {
 }
 
 func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newstr string) (*message.GroupMessage, error) {
+	var messages []MessageContent
 	// 检查groupCode是否是由字符串经MD5得到的
 	originalGroupID, exists := originalStringFromInt64(groupCode)
 
@@ -72,118 +72,54 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 	if exists {
 		finalGroupID = originalGroupID
 	}
-	// 图片数量统计
 	imgCount, videoCount, recordCount, fileCount := 0, 0, 0, 0
 	for _, e := range m.Elements {
+		var eleType string
 		switch e.Type() {
 		case message.Image:
+			eleType = "image"
 			imgCount++
 		case message.Video:
+			eleType = "video"
 			videoCount++
 		case message.Voice:
+			eleType = "record"
 			recordCount++
 		case message.File:
+			eleType = "file"
 			fileCount++
+		case message.Text:
+			eleType = "text"
+		case message.At:
+			eleType = "at"
+		case message.Reply:
+			eleType = "reply"
+		default:
+			logger.Errorf("未知的消息类型")
 		}
+		messages = append(messages, MessageContent{
+			eleType,
+			e,
+		})
 	}
 	//判定消息长度限制
 	msgLen := message.EstimateLength(m.Elements)
-	imgLen, videoLen, recordLen, fileLen := 0, 0, 0, 0
-	totalLen := 0
-	if len(m.Elements) > 0 {
-		for _, e := range m.Elements {
-			//判断消息是否为图片
-			if text, ok := e.(*message.TextElement); ok {
-				// 寻找图片
-				re := regexp.MustCompile(`\[CQ:image,file=(.*?)\]`)
-				picCount := re.FindAllStringIndex(text.Content, -1)
-				imgCount += len(picCount)
-				if imgCount > 0 {
-					tmpLen := 0
-					for _, pic := range picCount {
-						tmpLen += pic[1] - pic[0]
-					}
-					imgLen += tmpLen
-					msgLen -= tmpLen
-				}
-				// 寻找视频
-				re = regexp.MustCompile(`\[CQ:video,file=(.*?)\]`)
-				vCount := re.FindAllStringIndex(text.Content, -1)
-				videoCount += len(vCount)
-				if videoCount > 0 {
-					tmpLen := 0
-					for _, v := range vCount {
-						tmpLen += v[1] - v[0]
-					}
-					videoLen += tmpLen
-					msgLen -= tmpLen
-				}
-				// 寻找语音
-				re = regexp.MustCompile(`\[CQ:record,file=(.*?)\]`)
-				rCount := re.FindAllStringIndex(text.Content, -1)
-				recordCount += len(rCount)
-				if recordCount > 0 {
-					tmpLen := 0
-					for _, r := range rCount {
-						tmpLen += r[1] - r[0]
-					}
-					recordLen += tmpLen
-					msgLen -= tmpLen
-				}
-				// 寻找文件
-				re = regexp.MustCompile(`\[CQ:file,file=(.*?)\]`)
-				fCount := re.FindAllStringIndex(text.Content, -1)
-				fileCount += len(fCount)
-				if fileCount > 0 {
-					tmpLen := 0
-					for _, r := range fCount {
-						tmpLen += r[1] - r[0]
-					}
-					fileLen += tmpLen
-					msgLen -= tmpLen
-				}
-			}
-		}
-		totalLen = msgLen + imgLen + recordLen + fileLen
-		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 视频: %d, 语音：%d, 文件：%d", totalLen, msgLen, imgCount, videoCount, recordCount, fileCount)
-	}
+	logger.Infof("本次发送总长: %d, 图片: %d, 视频: %d, 语音：%d, 文件：%d", msgLen, imgCount, videoCount, recordCount, fileCount)
 	//判断是否超过最大发送长度
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
 		return nil, errors.New("消息或图片长度超限，取消本次发送")
 	}
-	// // 构造消息
-	// echo := generateEcho("send_group_msg")
-	// msg := WebSocketActionMessage{
-	// 	Action: "send_group_msg",
-	// 	Params: WebSocketParams{
-	// 		GroupID: finalGroupID,
-	// 		Message: newstr,
-	// 	},
-	// 	Echo: echo,
-	// }
-	// data, err := json.Marshal(msg)
-	// if err != nil {
-	// 	return nil, errors.New(fmt.Sprintf("Failed to marshal message to JSON: %v", err))
-	// }
-	// // 创建响应通道并添加到映射中
-	// respChan := make(chan *ResponseSendMessage)
-	// c.responseMessage[echo] = respChan
-	expTime := math.Ceil(float64(totalLen) / 131072)
-	if totalLen < 1024 && (imgCount > 0 || videoCount > 0 || recordLen > 0 || fileLen > 0) {
-		expTime = 120
-	}
-	expTime += 6
+	expTime := 120.00
 	tmpMsg := ""
 	if len(newstr) > 75 {
 		tmpMsg = newstr[:75] + "..."
 	} else {
 		tmpMsg = newstr
 	}
-	logger.Infof("发送 群消息 给 (%v) 预期耗时 %.0fs: %s", finalGroupID, expTime, tmpMsg)
-	//c.sendToWebSocketClient(c.ws, data)
+	logger.Infof("发送 群消息 给 %s(%v): %s", c.FindGroup(groupCode).Name, finalGroupID, tmpMsg)
 	data, err := c.SendApi("send_group_msg", map[string]any{
 		"group_id": finalGroupID,
-		"message":  newstr,
+		"message":  messages,
 	}, expTime)
 	if err != nil {
 		return nil, errors.Wrap(err, "发送群消息失败")
@@ -214,44 +150,6 @@ func (c *QQClient) RealSendMSG(groupCode int64, m *message.SendingMessage, newst
 		retMsg.GroupName = g.Name
 	}
 	return &retMsg, nil
-	// // 发送消息
-	// seq, pkt := c.buildGroupSendingPacket(groupCode, mr, 1, 0, 0, forward, m.Elements)
-	// _ = c.sendPacket(pkt)
-	// // 等待响应或超时
-	// select {
-	// case resp := <-respChan:
-	// 	delete(c.responseMessage, echo)
-	// 	if resp.Retcode == 0 {
-
-	// // 等待响应或超时
-	// select {
-	// case resp := <-respChan:
-	// 	delete(c.responseMessage, echo)
-	// 	if resp.Retcode == 0 {
-	// 		retMsg := &message.GroupMessage{
-	// 			Id:         resp.Data.MessageID,
-	// 			InternalId: int32(rand.Uint32()),
-	// 			GroupCode:  groupCode,
-	// 			GroupName:  "",
-	// 			Sender: &message.Sender{
-	// 				Uin:      c.Uin,
-	// 				Nickname: c.Nickname,
-	// 				IsFriend: true,
-	// 			},
-	// 			Time:     int32(time.Now().Unix()),
-	// 			Elements: m.Elements,
-	// 		}
-	// 		if c.GroupList != nil {
-	// 			retMsg.GroupName = c.FindGroupByUin(groupCode).Name
-	// 		}
-	// 		return retMsg, nil
-	// 	} else {
-	// 		return nil, errors.New(fmt.Sprintf("Failed to send group message: %v", resp.Message))
-	// 	}
-	// case <-time.After(time.Duration(expTime) * time.Second):
-	// 	delete(c.responseMessage, echo)
-	// 	return nil, errors.New("Send group message timeout")
-	// }
 }
 
 // SendGroupForwardMessage 发送群合并转发消息

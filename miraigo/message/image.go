@@ -51,6 +51,18 @@ type GuildImageElement struct {
 
 type ImageBizType uint32
 
+type ImageElement struct {
+	Name       string `json:"name"`
+	Summary    string `json:"summary"`
+	File       string `json:"file"`
+	SubType    string `json:"sub_type"`
+	FileId     string `json:"file_id"`
+	Url        string `json:"url"`
+	Path       string `json:"path"`
+	FileSize   int64  `json:"file_size"`
+	FileUnique string `json:"file_unique"`
+}
+
 const (
 	UnknownBizType  ImageBizType = 0
 	CustomFaceImage ImageBizType = 1
@@ -77,6 +89,14 @@ func NewGroupImage(id string, md5 []byte, fid int64, size, width, height, imageT
 		Height:    height,
 		Url:       fmt.Sprintf("https://gchat.qpic.cn/gchatpic_new/1/0-0-%X/0?term=2", md5),
 	}
+}
+
+func NewImage(file string) *ImageElement {
+	return &ImageElement{File: file}
+}
+
+func (i *ImageElement) Type() ElementType {
+	return Image
 }
 
 func (e *GroupImageElement) Type() ElementType {

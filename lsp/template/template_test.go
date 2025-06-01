@@ -346,7 +346,7 @@ func TestAbort(t *testing.T) {
 
 	s, err = runTemplate(`{{- abort (pic "invalid") -}}`, nil)
 	assert.Nil(t, err)
-	assert.EqualValues(t, "[Image]", s)
+	assert.EqualValues(t, "[图片]", s)
 }
 
 func TestFin(t *testing.T) {

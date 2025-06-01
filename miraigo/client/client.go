@@ -572,8 +572,8 @@ var md5Int64MappingLock sync.Mutex
 type DynamicInt64 int64
 
 type MessageContent struct {
-	Type string                 `json:"type"`
-	Data map[string]interface{} `json:"data"`
+	Type string                  `json:"type"`
+	Data message.IMessageElement `json:"data"`
 }
 
 type WebSocketMessage struct {

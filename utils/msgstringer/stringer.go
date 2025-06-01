@@ -22,7 +22,6 @@ func MsgToString(elements []message.IMessageElement) string {
 		switch e := elem.(type) {
 		case *message.TextElement:
 			res.WriteString(e.Content)
-			//fmt.Printf("Content of TextElement: %s\n", e.Content)
 			logger.Debugf(`Content of TextElement: %s\n`, e.Content)
 		case *message.FaceElement:
 			res.WriteString("[")
@@ -30,60 +29,63 @@ func MsgToString(elements []message.IMessageElement) string {
 			res.WriteString("]")
 		case *message.GroupImageElement:
 			if e.Flash {
-				res.WriteString("[Flash Image]")
+				res.WriteString("[闪照]")
 			} else {
-				res.WriteString("[Image]")
+				res.WriteString("[图片]")
 			}
 		case *message.FriendImageElement:
 			if e.Flash {
-				res.WriteString("[Flash Image]")
+				res.WriteString("[闪照]")
 			} else {
-				res.WriteString("[Image]")
+				res.WriteString("[图片]")
 			}
+		case *message.ImageElement:
+			res.WriteString("[图片]")
 		case *message.AtElement:
-			res.WriteString("[CQ:at,qq=")
 			if e.Target == 0 {
-				res.WriteString("all")
+				res.WriteString("[艾特全体]")
 			} else {
-				res.WriteString(strconv.FormatInt(e.Target, 10))
+				res.WriteString("[艾特:" + strconv.FormatInt(e.Target, 10) + "]")
 			}
-			res.WriteString("]")
 		case *message.RedBagElement:
-			res.WriteString("[RedBag:")
+			res.WriteString("[QQ红包:")
 			res.WriteString(e.Title)
 			res.WriteString("]")
 		case *message.ReplyElement:
 			//fmt.Printf("暂时不发送at:[Reply:%s]\n", strconv.FormatInt(int64(e.ReplySeq), 10))
 			//logger.Infof(`暂时不发送at:[Reply:%s]\n`, strconv.FormatInt(int64(e.ReplySeq), 10))
-			res.WriteString("[CQ:reply,id=")
+			res.WriteString("[回复:")
 			res.WriteString(strconv.FormatInt(int64(e.ReplySeq), 10))
 			res.WriteString("]")
 		case *message.GroupFileElement:
-			res.WriteString("[File]")
+			res.WriteString("[文件]")
 			res.WriteString(e.Name)
 		case *message.FriendFileElement:
-			res.WriteString("[File]")
+			res.WriteString("[文件]")
 			res.WriteString(e.Name)
-		case *message.ShortVideoElement:
-			res.WriteString("[Video]")
+		case *message.FileElement:
+			res.WriteString("[文件]")
+			res.WriteString(e.Name)
+		case *message.ShortVideoElement, *message.VideoElement:
+			res.WriteString("[视频]")
 		case *message.ForwardElement:
-			res.WriteString("[Forward]")
+			res.WriteString("[聊天记录]")
 		case *message.MusicShareElement:
-			res.WriteString("[Music]")
+			res.WriteString("[音乐]")
 		case *message.LightAppElement:
-			res.WriteString("[LightApp]")
+			res.WriteString("[小程序]")
 			res.WriteString(e.Content)
 		case *message.ServiceElement:
-			res.WriteString("[Service]")
+			res.WriteString("[服务]")
 			res.WriteString(e.Content)
-		case *message.VoiceElement, *message.GroupVoiceElement:
-			res.WriteString("[Voice]")
+		case *message.VoiceElement, *message.GroupVoiceElement, *message.RecordElement:
+			res.WriteString("[语音]")
 		case *mmsg.ImageBytesElement:
-			res.WriteString("[Image]")
+			res.WriteString("[图片]")
 		case *mmsg.TypedElement:
-			res.WriteString("[Typed]")
+			res.WriteString("[自动类型]")
 		case *mmsg.CutElement:
-			res.WriteString("[CUT]")
+			res.WriteString("[分割]")
 		case *message.MarketFaceElement:
 			res.WriteString(e.Name)
 		case *message.DiceElement:
