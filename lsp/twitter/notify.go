@@ -72,7 +72,9 @@ func (n *NewNotify) ToMessage() *mmsg.MSG {
 	//	extractedURL = matches[1]
 	//}
 	// msg加入推文
-	message.Text(n.Tweet.Content + "\n")
+	if n.Tweet.Content != "" {
+		message.Text(n.Tweet.Content + "\n")
+	}
 	// msg加入媒体
 	for _, m := range n.Tweet.Media {
 		unescape := m.Url
