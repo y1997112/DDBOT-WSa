@@ -10,7 +10,7 @@ import (
 //go:generate go run generate.go
 
 type TextElement struct {
-	Content string
+	Content string `json:"text"`
 }
 
 type VoiceElement struct {
@@ -37,6 +37,7 @@ type FaceElement struct {
 
 type AtElement struct {
 	Target  int64
+	QQ      string `json:"qq"`
 	Display string
 	SubType AtType
 }
@@ -45,18 +46,22 @@ type GroupFileElement struct {
 	Name  string
 	Size  int64
 	Path  string
+	Id    string
+	Url   string
 	Busid int32
 }
 
 type FriendFileElement struct {
+	Id    string
 	Name  string
 	Size  int64
 	Path  string
+	Url   string
 	Busid int32
 }
 
 type ReplyElement struct {
-	ReplySeq int32
+	ReplySeq int32 `json:"id"`
 	Sender   int64
 	GroupID  int64 // 私聊回复群聊时
 	Time     int32
@@ -77,34 +82,34 @@ type ShortVideoElement struct {
 }
 
 type VideoElement struct {
-	File       any    // B64、文件路径、URL
-	Name       string // 发(可选)
-	Thumb      string // 发(可选)
-	Url        string // 收
-	Path       string // 收
-	FileId     string // 收
-	FileSize   int64  // 收
-	FileUnique string // 收
+	File       any    `json:"file"`
+	Name       string `json:"name,omitempty"`
+	Thumb      string `json:"thumb,omitempty"`
+	Url        string `json:"url,omitempty"`
+	Path       string `json:"path,omitempty"`
+	FileId     string `json:"file_id,omitempty"`
+	FileSize   int64  `json:"file_size,omitempty"`
+	FileUnique string `json:"file_unique,omitempty"`
 }
 
 type RecordElement struct {
-	File       any    // B64、文件路径、URL
-	Name       string // 发(可选)
-	Url        string // 收
-	Path       string // 收
-	FileId     string // 收
-	FileSize   int64  // 收
-	FileUnique string // 收
+	File       any    `json:"file"`
+	Name       string `json:"name,omitempty"`
+	Url        string `json:"url,omitempty"`
+	Path       string `json:"path,omitempty"`
+	FileId     string `json:"file_id,omitempty"`
+	FileSize   int64  `json:"file_size,omitempty"`
+	FileUnique string `json:"file_unique,omitempty"`
 }
 
 type FileElement struct {
-	File       any    // B64、文件路径、URL
-	Name       string // 发(可选)
-	Url        string // 收
-	Path       string // 收
-	FileId     string // 收
-	FileSize   int64  // 收
-	FileUnique string // 收
+	File       any    `json:"file"`
+	Name       string `json:"name,omitempty"`
+	Url        string `json:"url,omitempty"`
+	Path       string `json:"path,omitempty"`
+	FileId     string `json:"file_id,omitempty"`
+	FileSize   int64  `json:"file_size,omitempty"`
+	FileUnique string `json:"file_unique,omitempty"`
 }
 
 type ServiceElement struct {
@@ -174,15 +179,15 @@ const (
 	AtTypeGuildChannel = 2 // At频道
 )
 
-func NewVideo(file any) *VideoElement {
+func NewVideo(file string) *VideoElement {
 	return &VideoElement{File: file}
 }
 
-func NewRecord(file any) *RecordElement {
+func NewRecord(file string) *RecordElement {
 	return &RecordElement{File: file}
 }
 
-func NewFile(file any) *FileElement {
+func NewFile(file string) *FileElement {
 	return &FileElement{File: file}
 }
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/Mrs4s/MiraiGo/message"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 )
 
 type ImageBytesElement struct {
@@ -15,10 +15,6 @@ type ImageBytesElement struct {
 	Buf         []byte
 	alternative string
 }
-
-//func NewImage(buf []byte) *ImageBytesElement {
-//	return &ImageBytesElement{Buf: buf, alternative: ""}
-//}
 
 func NewImage(buf []byte, url ...any) *ImageBytesElement {
 	v := &ImageBytesElement{}
@@ -138,24 +134,27 @@ func (i *ImageBytesElement) Type() message.ElementType {
 // }
 
 func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement {
+	m := message.NewImage("")
 	if i == nil {
 		return message.NewText("[空图片]\n")
 	} else if i.Url != "" {
-		var base64Text string
 		if strings.HasPrefix(i.Url, "http://") || strings.HasPrefix(i.Url, "https://") {
-			base64Text = "[CQ:image,file=" + i.Url + "]"
+			m.File = i.Url
 		} else {
-			base64Text = "[CQ:image,file=file://" + strings.ReplaceAll(i.Url, `\`, `\\`) + "]"
+			m.File = "file://" + strings.ReplaceAll(i.Url, `\`, `\\`)
 		}
-		return message.NewText(base64Text)
+		return m
 	} else if i.Buf == nil {
+		if target.TargetType() == TargetGroup && target.TargetCode() == 0 {
+			return message.NewText("test\n")
+		}
 		logger.Debugf("TargetPrivate %v nil image buf", target.TargetCode())
 		return nil
 	}
 	logger.Debugf("转换base64图片")
-	base64Image := base64.StdEncoding.EncodeToString(i.Buf)      // 这里进行转换
-	base64Text := "[CQ:image,file=base64://" + base64Image + "]" // Base64 文本格式
-	return message.NewText(base64Text)
+	base64Image := base64.StdEncoding.EncodeToString(i.Buf) // 这里进行转换
+	m.File = "base64://" + base64Image
+	return m
 
 	// switch target.TargetType() {
 	// case TargetPrivate:
@@ -179,6 +178,4 @@ func (i *ImageBytesElement) PackToElement(target Target) message.IMessageElement
 	// default:
 	// 	panic("ImageBytesElement PackToElement: unknown TargetType")
 	// }
-
-	return message.NewText(base64Text)
 }

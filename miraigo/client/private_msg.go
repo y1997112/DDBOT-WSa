@@ -2,9 +2,7 @@ package client
 
 import (
 	"encoding/json"
-	"math"
 	"math/rand"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -28,6 +26,7 @@ type WebSocketParamsPrivate struct {
 
 // 发送私聊信息
 func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, newstr string) *message.PrivateMessage {
+	var messages []MessageContent
 	// 检查target是否是由字符串经MD5得到的
 	originalUserID, exists := originalStringFromInt64(target)
 
@@ -37,79 +36,53 @@ func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, n
 		finalUserID = originalUserID
 	}
 
-	// 图片数量统计
-	imgCount := 0
+	imgCount, videoCount, recordCount, fileCount := 0, 0, 0, 0
 	for _, e := range m.Elements {
+		var eleType string
 		switch e.Type() {
 		case message.Image:
+			eleType = "image"
 			imgCount++
+		case message.Video:
+			eleType = "video"
+			videoCount++
+		case message.Voice:
+			eleType = "record"
+			recordCount++
+		case message.File:
+			eleType = "file"
+			fileCount++
+		case message.Text:
+			eleType = "text"
+		case message.Reply:
+			eleType = "reply"
+		default:
+			logger.Errorf("未知的消息类型")
 		}
+		messages = append(messages, MessageContent{
+			eleType,
+			e,
+		})
 	}
 	//判定消息长度限制
 	msgLen := message.EstimateLength(m.Elements)
-	imgLen := 0
-	totalLen := 0
-	if len(m.Elements) > 0 {
-		for _, e := range m.Elements {
-			//判断消息是否为图片
-			if text, ok := e.(*message.TextElement); ok {
-				re := regexp.MustCompile(`\[CQ:image,file=(.*?)\]`)
-				picCount := re.FindAllStringIndex(text.Content, -1)
-				imgCount += len(picCount)
-				if imgCount > 0 {
-					tmpLen := 0
-					for _, pic := range picCount {
-						tmpLen += pic[1] - pic[0]
-					}
-					imgLen += tmpLen
-					msgLen -= tmpLen
-				}
-			}
-		}
-		totalLen = msgLen + imgLen
-		logger.Infof("本次发送总长: %d, 文本: %d, 图片: %d, 长度：%d", totalLen, msgLen, imgCount, imgLen)
-	}
+	logger.Infof("本次发送总长: %d, 图片: %d, 视频: %d, 语音：%d, 文件：%d", msgLen, imgCount, videoCount, recordCount, fileCount)
 	//判断是否超过最大发送长度
 	if msgLen > message.MaxMessageSize || imgCount > 20 {
 		return nil
 	}
-	// 构造消息
-	// echo := generateEcho("send_private_msg")
-	// msg := WebSocketActionMessagePrivate{
-	// 	Action: "send_private_msg",
-	// 	Params: WebSocketParamsPrivate{
-	// 		UserID:  finalUserID,
-	// 		Message: newstr,
-	// 	},
-	// 	Echo: echo,
-	// }
-
-	// data, err := json.Marshal(msg)
-	// if err != nil {
-	// 	//fmt.Printf("Failed to marshal message to JSON: %v", err)
-	// 	logger.Errorf("Failed to marshal message to JSON: %v", err)
-	// 	return nil
-	// }
-
-	// respChan := make(chan *ResponseSendMessage)
-	// c.responseMessage[echo] = respChan
-	expTime := math.Ceil(float64(totalLen) / 131072)
-	if totalLen < 1024 && imgCount > 0 {
-		expTime = 90
-	}
-	expTime += 6
+	expTime := 120.00
 	tmpMsg := ""
 	if len(newstr) > 75 {
 		tmpMsg = newstr[:75] + "..."
 	} else {
 		tmpMsg = newstr
 	}
-	logger.Infof("发送 私聊消息 给 (%v) 预期耗时 %.0fs: %s", finalUserID, expTime, tmpMsg)
-	// c.sendToWebSocketClient(c.ws, data)
+	logger.Infof("发送 私聊消息 给 %s(%v): %s", c.FindFriend(target).Nickname, finalUserID, tmpMsg)
 
 	data, err := c.SendApi("send_private_msg", map[string]any{
 		"user_id": finalUserID,
-		"message": newstr,
+		"message": messages,
 	}, expTime)
 	if err != nil {
 		logger.Errorf("发送私聊消息失败: %v", err)
@@ -141,84 +114,6 @@ func (c *QQClient) SendPrivateMessage(target int64, m *message.SendingMessage, n
 	}
 	go c.SelfPrivateMessageEvent.dispatch(c, retMsg)
 	return retMsg
-	// select {
-	// case resp := <-respChan:
-	// 	delete(c.responseMessage, echo)
-	// 	if resp.Retcode == 0 {
-	// 		c.stat.MessageSent.Add(1)
-	// 		retMsg := &message.PrivateMessage{
-	// 			Id:         resp.Data.MessageID,
-	// 			InternalId: int32(rand.Uint32()),
-	// 			Self:       c.Uin,
-	// 			Target:     target,
-	// 			Sender: &message.Sender{
-	// 				Uin:      c.Uin,
-	// 				Nickname: c.Nickname,
-	// 				IsFriend: true,
-	// 			},
-	// 			Time:     int32(time.Now().Unix()),
-	// 			Elements: m.Elements,
-	// 		}
-	// 		go c.SelfPrivateMessageEvent.dispatch(c, retMsg)
-	// 		return retMsg
-	// 	} else {
-	// 		logger.Errorf("发送私聊消息失败: %d", resp.Retcode)
-	// 	}
-	// 	//return c.sendGroupMessage(groupCode, false, m, msgID)
-	// case <-time.After(time.Duration(expTime) * time.Second):
-	// 	delete(c.responseMessage, echo)
-	// 	logger.Errorf("发送私聊消息超时: %d", expTime)
-	// }
-	// return nil
-	// mr := int32(rand.Uint32())
-	// var seq int32
-	// t := time.Now().Unix()
-	// imgCount := 0
-	// frag := true
-	// for _, e := range m.Elements {
-	// 	switch e.Type() {
-	// 	case message.Image:
-	// 		imgCount++
-	// 	case message.Reply:
-	// 		frag = false
-	// 	}
-	// }
-	// msgLen := message.EstimateLength(m.Elements)
-	// if msgLen > message.MaxMessageSize || imgCount > 50 {
-	// 	return nil
-	// }
-	// if frag && (msgLen > 300 || imgCount > 2) && target == c.Uin {
-	// 	div := int32(rand.Uint32())
-	// 	fragmented := m.ToFragmented()
-	// 	for i, elems := range fragmented {
-	// 		fseq := c.nextFriendSeq()
-	// 		if i == 0 {
-	// 			seq = fseq
-	// 		}
-	// 		_, pkt := c.buildFriendSendingPacket(target, fseq, mr, int32(len(fragmented)), int32(i), div, t, elems)
-	// 		_ = c.sendPacket(pkt)
-	// 	}
-	// } else {
-	// 	seq = c.nextFriendSeq()
-	// 	if target != c.Uin {
-	// 		_, pkt := c.buildFriendSendingPacket(target, seq, mr, 1, 0, 0, t, m.Elements)
-	// 		_ = c.sendPacket(pkt)
-	// 	}
-	// }
-	// c.stat.MessageSent.Add(1)
-	// ret := &message.PrivateMessage{
-	// 	Id:         seq,
-	// 	InternalId: mr,
-	// 	Self:       c.Uin,
-	// 	Target:     target,
-	// 	Time:       int32(t),
-	// 	Sender: &message.Sender{
-	// 		Uin:      c.Uin,
-	// 		Nickname: c.Nickname,
-	// 		IsFriend: true,
-	// 	},
-	// 	Elements: m.Elements,
-	// }
 }
 
 func (c *QQClient) SendGroupTempMessage(groupCode, target int64, m *message.SendingMessage) *message.TempMessage {

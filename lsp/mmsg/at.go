@@ -3,7 +3,8 @@ package mmsg
 import (
 	"fmt"
 	"github.com/Mrs4s/MiraiGo/message"
-	localutils "github.com/Sora233/DDBOT/utils"
+	localutils "github.com/cnxysoft/DDBOT-WSa/utils"
+	"strconv"
 )
 
 type AtElement struct {
@@ -21,8 +22,10 @@ func (a *AtElement) PackToElement(target Target) message.IMessageElement {
 	switch target.TargetType() {
 	case TargetGroup:
 		if a.Target == 0 {
+			a.QQ = "all"
 			a.Display = "@全体成员"
 		} else {
+			a.QQ = strconv.FormatInt(a.Target, 10)
 			if a.Display == "" {
 				if gi := localutils.GetBot().FindGroup(target.TargetCode()); gi != nil {
 					if gmi := gi.FindMember(a.Target); gmi != nil {

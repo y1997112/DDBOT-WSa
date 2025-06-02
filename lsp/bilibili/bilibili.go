@@ -3,9 +3,9 @@ package bilibili
 import (
 	"errors"
 	"fmt"
-	"github.com/Sora233/DDBOT/proxy_pool"
-	"github.com/Sora233/DDBOT/requests"
 	"github.com/Sora233/MiraiGo-Template/config"
+	"github.com/cnxysoft/DDBOT-WSa/proxy_pool"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/atomic"
 	"os"
@@ -21,7 +21,7 @@ const (
 	BaseLiveHost = "https://api.live.bilibili.com"
 	BaseVCHost   = "https://api.vc.bilibili.com"
 	VideoView    = "https://www.bilibili.com/video"
-	DynamicView  = "https://t.bilibili.com"
+	DynamicView  = "https://www.bilibili.com/opus"
 	PassportHost = "https://passport.bilibili.com"
 
 	CompactExpireTime = time.Minute * 60
@@ -32,19 +32,22 @@ const (
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 var BasePath = map[string]string{
-	PathXSpaceAccInfo:            BaseHost,
-	PathDynamicSrvSpaceHistory:   BaseVCHost,
-	PathDynamicSrvDynamicNew:     BaseVCHost,
-	PathRelationModify:           BaseHost,
-	PathRelationFeedList:         BaseLiveHost,
-	PathGetAttentionList:         BaseVCHost,
-	PathPassportLoginWebKey:      PassportHost,
-	PathPassportLoginOAuth2Login: PassportHost,
-	PathQRLoginGenerateQR:        PassportHost,
-	PathQRLoginOAuth2Login:       PassportHost,
-	PathXRelationStat:            BaseHost,
-	PathXWebInterfaceNav:         BaseHost,
-	PathDynamicSrvDynamicHistory: BaseVCHost,
+	PathXSpaceAccInfo:                   BaseHost,
+	PathDynamicSrvSpaceHistory:          BaseVCHost,
+	PathDynamicSrvDynamicNew:            BaseVCHost,
+	PathRelationModify:                  BaseHost,
+	PathRelationFeedList:                BaseLiveHost,
+	PathGetAttentionList:                BaseVCHost,
+	PathPassportLoginWebKey:             PassportHost,
+	PathPassportLoginOAuth2Login:        PassportHost,
+	PathQRLoginGenerateQR:               PassportHost,
+	PathQRLoginOAuth2Login:              PassportHost,
+	PathXRelationStat:                   BaseHost,
+	PathXWebInterfaceNav:                BaseHost,
+	PathDynamicSrvDynamicHistory:        BaseVCHost,
+	PathGetPlayTogetherUserAnchorInfoV2: BaseLiveHost,
+	PathRoomInfo:                        BaseLiveHost,
+	PathWebAreaList:                     BaseLiveHost,
 }
 
 type VerifyInfo struct {

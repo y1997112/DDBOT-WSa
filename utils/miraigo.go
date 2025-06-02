@@ -123,6 +123,7 @@ const (
 	internalTypeText        = "text"
 	internalTypeGroupImage  = "group_image"
 	internalTypeFriendImage = "friend_image"
+	internalTypeImage       = "image"
 )
 
 // SerializationElement 序列化消息，只支持图片，文字
@@ -147,6 +148,12 @@ func SerializationElement(e []message.IMessageElement) (string, error) {
 			b, _ := json.Marshal(o)
 			tmp = append(tmp, &internalElem{
 				Type:    internalTypeFriendImage,
+				Content: string(b),
+			})
+		case *message.ImageElement:
+			b, _ := json.Marshal(o)
+			tmp = append(tmp, &internalElem{
+				Type:    internalTypeImage,
 				Content: string(b),
 			})
 		default:
@@ -181,6 +188,12 @@ func DeserializationElement(r string) ([]message.IMessageElement, error) {
 			}
 		case internalTypeFriendImage:
 			var elem *message.FriendImageElement
+			json.UnmarshalFromString(e.Content, &elem)
+			if elem != nil {
+				result = append(result, elem)
+			}
+		case internalTypeImage:
+			var elem *message.ImageElement
 			json.UnmarshalFromString(e.Content, &elem)
 			if elem != nil {
 				result = append(result, elem)

@@ -3,9 +3,9 @@ package template
 import (
 	"fmt"
 	"github.com/Mrs4s/MiraiGo/message"
-	"github.com/Sora233/DDBOT/internal/test"
-	"github.com/Sora233/DDBOT/lsp/mmsg"
-	"github.com/Sora233/DDBOT/utils/msgstringer"
+	"github.com/cnxysoft/DDBOT-WSa/internal/test"
+	"github.com/cnxysoft/DDBOT-WSa/lsp/mmsg"
+	"github.com/cnxysoft/DDBOT-WSa/utils/msgstringer"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"path/filepath"
@@ -346,7 +346,7 @@ func TestAbort(t *testing.T) {
 
 	s, err = runTemplate(`{{- abort (pic "invalid") -}}`, nil)
 	assert.Nil(t, err)
-	assert.EqualValues(t, "[Image]", s)
+	assert.EqualValues(t, "[图片]", s)
 }
 
 func TestFin(t *testing.T) {

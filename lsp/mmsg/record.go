@@ -3,8 +3,8 @@ package mmsg
 import (
 	"encoding/base64"
 	"github.com/Mrs4s/MiraiGo/message"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 	"strings"
 )
 
@@ -49,22 +49,22 @@ func (r *RecordElement) Type() message.ElementType {
 }
 
 func (r *RecordElement) PackToElement(target Target) message.IMessageElement {
+	m := message.NewRecord("")
 	if r == nil {
 		return message.NewText("[空语音]\n")
 	} else if r.Url != "" {
-		var base64Text string
 		if strings.HasPrefix(r.Url, "http://") || strings.HasPrefix(r.Url, "https://") {
-			base64Text = "[CQ:record,file=" + r.Url + "]"
+			m.File = r.Url
 		} else {
-			base64Text = "[CQ:record,file=file://" + strings.ReplaceAll(r.Url, `\`, `\\`) + "]"
+			m.File = "file://" + strings.ReplaceAll(r.Url, `\`, `\\`)
 		}
-		return message.NewText(base64Text)
+		return m
 	} else if r.Buf == nil {
 		logger.Debugf("TargetPrivate %v nil record buf", target.TargetCode())
 		return nil
 	}
 	logger.Debugf("转换base64语音")
-	base64Record := base64.StdEncoding.EncodeToString(r.Buf)       // 这里进行转换
-	base64Text := "[CQ:record,file=base64://" + base64Record + "]" // Base64 文本格式
-	return message.NewText(base64Text)
+	base64Record := base64.StdEncoding.EncodeToString(r.Buf) // 这里进行转换
+	m.File = "base64://" + base64Record
+	return m
 }

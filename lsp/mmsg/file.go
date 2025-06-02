@@ -3,8 +3,8 @@ package mmsg
 import (
 	"encoding/base64"
 	"github.com/Mrs4s/MiraiGo/message"
-	"github.com/Sora233/DDBOT/requests"
-	"github.com/Sora233/DDBOT/utils"
+	"github.com/cnxysoft/DDBOT-WSa/requests"
+	"github.com/cnxysoft/DDBOT-WSa/utils"
 	"strconv"
 	"strings"
 )
@@ -69,24 +69,26 @@ func (f *FileElement) Type() message.ElementType {
 }
 
 func (f *FileElement) PackToElement(target Target) message.IMessageElement {
+	m := message.NewFile("")
 	if f == nil {
 		return message.NewText("[空文件]\n")
 	} else if f.Url != "" {
-		var base64Text string
 		if strings.HasPrefix(f.Url, "http://") || strings.HasPrefix(f.Url, "https://") {
-			base64Text = "[CQ:file,file=" + f.Url + setName(f.alternative, f.name) + "]"
+			m.File = f.Url
 		} else {
-			base64Text = "[CQ:file,file=file://" + strings.ReplaceAll(f.Url, `\`, `\\`) + setName(f.alternative, f.name) + "]"
+			m.File = "file://" + strings.ReplaceAll(f.Url, `\`, `\\`)
 		}
-		return message.NewText(base64Text)
+		m.Name = f.name
+		return m
 	} else if f.Buf == nil {
 		logger.Debugf("TargetPrivate %v nil file buf", target.TargetCode())
 		return nil
 	}
 	logger.Debugf("转换base64文件")
-	base64File := base64.StdEncoding.EncodeToString(f.Buf)                                      // 这里进行转换
-	base64Text := "[CQ:file,file=base64://" + base64File + setName(f.alternative, f.name) + "]" // Base64 文本格式
-	return message.NewText(base64Text)
+	base64File := base64.StdEncoding.EncodeToString(f.Buf) // 这里进行转换
+	m.File = "base64://" + base64File
+	m.Name = f.name
+	return m
 }
 
 func setName(s1 string, s2 string) string {
