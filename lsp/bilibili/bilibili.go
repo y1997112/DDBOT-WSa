@@ -21,7 +21,7 @@ const (
 	BaseLiveHost = "https://api.live.bilibili.com"
 	BaseVCHost   = "https://api.vc.bilibili.com"
 	VideoView    = "https://www.bilibili.com/video"
-	DynamicView  = "https://t.bilibili.com"
+	DynamicView  = "https://www.bilibili.com/opus"
 	PassportHost = "https://passport.bilibili.com"
 
 	CompactExpireTime = time.Minute * 60
