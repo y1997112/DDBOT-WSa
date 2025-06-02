@@ -41,6 +41,7 @@ type (
 		AltFileSize   int64  `json:"size"`
 		AltFileName   string `json:"name"`
 		FileUrl       string `json:"file_url"`
+		AltFileUrl    string `json:"url"`
 	}
 
 	GroupFolder struct {

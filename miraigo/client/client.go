@@ -1181,8 +1181,9 @@ func (c *QQClient) handleGroupUploadNotice(wsmsg WebSocketMessage) (bool, error)
 		FileName:  wsmsg.File.AltFileName,
 		FileSize:  wsmsg.File.AltFileSize,
 		BusId:     wsmsg.File.BusId,
+		FileUrl:   wsmsg.File.AltFileUrl,
 	}
-	if file.FileId != "" {
+	if file.FileUrl == "" && file.FileId != "" {
 		file.FileUrl = c.GetFileUrl(file.GroupCode, file.FileId)
 	}
 	c.GroupUploadNotifyEvent.dispatch(c, &GroupUploadNotifyEvent{
@@ -1625,24 +1626,38 @@ func parseJsonElement(contentMap map[string]interface{}, elements *[]message.IMe
 func parseFileElement(contentMap map[string]interface{}, elements *[]message.IMessageElement, isGroupMsg bool) {
 	file, ok := contentMap["data"].(map[string]interface{})
 	if ok {
-		var fileSize int64
-		switch file["file_size"].(type) {
-		case string:
-			fileSize, _ = strconv.ParseInt(file["file_size"].(string), 10, 64)
-		case int64:
-			fileSize = file["file_size"].(int64)
+		var fileSize int64 = 0
+		fileName := ""
+		if file["file"] != nil {
+			fileName = file["file"].(string)
+		} else if file["file_name"] != nil {
+			fileName = file["file_name"].(string)
+		}
+		if file["file_size"] != nil {
+			switch file["file_size"].(type) {
+			case string:
+				fileSize, _ = strconv.ParseInt(file["file_size"].(string), 10, 64)
+			case int64:
+				fileSize = file["file_size"].(int64)
+			}
 		}
 		if isGroupMsg {
 			*elements = append(*elements, &message.GroupFileElement{
-				Name: file["file"].(string),
+				Name: fileName,
 				Size: fileSize,
 				Id:   file["file_id"].(string),
+				Url:  file["url"].(string),
 			})
 		} else {
+			fileUrl := ""
+			if file["url"] != nil {
+				fileUrl = file["url"].(string)
+			}
 			*elements = append(*elements, &message.FriendFileElement{
-				Name: file["file"].(string),
+				Name: fileName,
 				Size: fileSize,
-				Path: file["path"].(string),
+				Id:   file["file_id"].(string),
+				Url:  fileUrl,
 			})
 		}
 	}

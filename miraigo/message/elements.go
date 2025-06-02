@@ -47,13 +47,16 @@ type GroupFileElement struct {
 	Size  int64
 	Path  string
 	Id    string
+	Url   string
 	Busid int32
 }
 
 type FriendFileElement struct {
+	Id    string
 	Name  string
 	Size  int64
 	Path  string
+	Url   string
 	Busid int32
 }
 
