@@ -23,7 +23,7 @@ DDBOT是一个基于 [MiraiGO](https://github.com/Mrs4s/MiraiGo) 的QQ群推送�
 
 ## 使用方法
 
- - 使用LLOnebot / NapCat / Lagrange / Lagrange PMHQ连接
+ - 使用LLOnebot / NapCat / Lagrange / Lagrange PMHQ / Go-cqhttp 连接
    
  - 云崽安装ws-plugin
    
